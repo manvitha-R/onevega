@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation';
 
 interface PopupProps {
@@ -34,14 +34,13 @@ type NavItems = MainBoard[];
     boardId = null, 
     boardName = '', 
     closeModal,
-    onSubmit 
   }) => {
 
     const router = useRouter();
-  const [newPrompt, setNewPrompt] = useState('');
+  // const [newPrompt, setNewPrompt] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(boardName || '');
-  const [navItems, setNavItems] = useState<NavItems>([]);
+  const [, setNavItems] = useState<NavItems>([]);
 
   const handleSavePrompt = async () => {
     // Input validation
@@ -59,8 +58,8 @@ type NavItems = MainBoard[];
   
       const isEditMode = !!boardId;
       const url = isEditMode
-        ? `http://143.110.180.27:8002/main-boards/boards/${boardId}?user_id=${userId}`
-        : `http://143.110.180.27:8002/main-boards/boards/?user_id=${userId}`;
+        ? `http://143.110.180.27:8003/main-boards/boards/${boardId}?user_id=${userId}`
+        : `http://143.110.180.27:8003/main-boards/boards/?user_id=${userId}`;
   
       const requestBody = {
         main_board_id: mainBoardId,
@@ -258,6 +257,6 @@ type NavItems = MainBoard[];
 
 export default Popup;
 
-function setNavItems(arg0: (prevItems: any) => any) {
-  throw new Error('Function not implemented.');
-}
+// function setNavItems(arg0: (prevItems: any) => any) {
+//   throw new Error('Function not implemented.');
+// }

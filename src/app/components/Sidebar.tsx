@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, ChevronDown, ChevronRight, Settings, Plus, Database, BookOpen, BarChart3, Edit2, Trash2, X, ChartLine, Menu, ChevronLeft } from 'lucide-react';
+import Image from 'next/image';
+import { LayoutDashboard, ChevronDown, ChevronRight, Plus, Edit2, Trash2, ChartLine, ChevronLeft } from 'lucide-react';
 import Popup from "./Popup";
+import logo from '../../app/assets/logo.jpg';
 
 // Define a type for the menu names
 // type MenuName = 'dataAnalysis' | 'rag' | null;
@@ -18,7 +20,7 @@ interface Board {
 }
 
 interface MainBoard {
-  id(id: any): React.Key | null | undefined;
+  id(id: string): React.Key | null | undefined;
   main_board_id: string;
   name: string;
 
@@ -45,16 +47,21 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
   const [selectedBoard, setSelectedBoard] = useState<SelectedBoard>(null);
   const [navItems, setNavItems] = useState<MainBoard[]>([]);
   const [activeMainBoard, setActiveMainBoard] = useState<string | null>(null);
-  const [openMainBoards, setOpenMainBoards] = useState<{ [key: string]: boolean }>({});
+  // const [openMainBoards, setOpenMainBoards] = useState<{ [key: string]: boolean }>({});
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [mainBoardName, setMainBoardName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading,] = useState(false);
+  const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
 
 
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const handleBoardClick = (boardId: string) => {
+    setActiveBoardId(boardId); // Update the active board ID
   };
 
 
@@ -71,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
         return;
       }
 
-      const url = `http://143.110.180.27:8002/main-boards/?client_user_id=${clientUserId}`;
+      const url = `http://143.110.180.27:8003/main-boards/?client_user_id=${clientUserId}`;
 
       const requestBody = {
         client_user_id: parseInt(clientUserId),
@@ -119,7 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
       }
 
       const response = await fetch(
-        `http://143.110.180.27:8002/main-boards/boards/?user_id=${userId}`,
+        `http://143.110.180.27:8003/main-boards/boards/?user_id=${userId}`,
         {
           method: "POST",
           headers: {
@@ -174,7 +181,7 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
       }
 
       const response = await fetch(
-        `http://143.110.180.27:8002/main-boards/boards/?user_id=${userId}`,
+        `http://143.110.180.27:8003/main-boards/boards/?user_id=${userId}`,
         {
           method: "POST",
           headers: {
@@ -315,7 +322,7 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
       }
 
       // Construct the URL with boardId and userId as query parameters
-      const url = `http://143.110.180.27:8002/main-boards/boards/${boardId}?user_id=${userId}`;
+      const url = `http://143.110.180.27:8003/main-boards/boards/${boardId}?user_id=${userId}`;
 
       const response = await fetch(url, {
         method: 'DELETE',
@@ -403,7 +410,7 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
 
         // Fetch main boards and boards from the API
         const response = await fetch(
-          `http://143.110.180.27:8002/main-boards/get_all_info_tree?client_user_id=${clientUserId}`,
+          `http://143.110.180.27:8003/main-boards/get_all_info_tree?client_user_id=${clientUserId}`,
           {
             method: "GET",
             headers: {
@@ -458,7 +465,7 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
     router.push('/');
   };
   return (
-    <div className="h-screen bg-teal-900 text-white flex flex-col " >
+    <div className="h-screen bg-blue-900 text-white flex flex-col " >
 
       {/* Sidebar Toggle Button */}
       {/* <button onClick={toggleSidebar} className="p-2 text-white hover:bg-teal-800 focus:outline-none">
@@ -466,17 +473,21 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
       </button> */}
       {/* Logo Section */}
       {/* {isSidebarOpen && ( */}
+      
       <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-      <h1 className={`text-xl font-bold transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "opacity-0 hidden"}`}>
-      GBUSINESS.AI
-    </h1>
-         {/* Toggle Button (Always Visible) */}
-    <button
-      onClick={toggleSidebar}
-      className="p-2 text-white hover:bg-teal-800 focus:outline-none"
-    >
-      {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <ChevronRight className="w-6 h-6" />}
-    </button>
+      {isSidebarOpen && (
+      <Image src={logo} alt="GBUSINESS.AI Logo" width={150}  height={150}/>
+    )}
+        {/* <h1 className={`text-xl font-bold transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "opacity-0 hidden"}`}>
+          GBUSINESS.AI
+        </h1> */}
+        {/* Toggle Button (Always Visible) */}
+        <button
+          onClick={toggleSidebar}
+          className="p-2 text-white hover:bg-blue-800 focus:outline-none"
+        >
+          {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <ChevronRight className="w-6 h-6" />}
+        </button>
       </div>
       {/* )} */}
 
@@ -484,14 +495,14 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
       {/* Button to Open Modal */}
       {/* Display the client user ID if needed */}
       {clientUserId && (
-        <p className="text-sm text-green-300 mt-2">
+        <p className="text-sm text-blue-300 mt-2">
           User ID: {clientUserId}
         </p>
       )}
       {isSidebarOpen && (
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 m-4 rounded"
+          className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 m-4 rounded"
         >
           Create Main Board
         </button>
@@ -533,88 +544,92 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
       )}
       {/* Navigation Section */}
       {/* {isSidebarOpen && ( */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="p-4">
-            <div className="mb-4">
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
+        <div className="p-4">
+          <div className="mb-4">
 
-              <div className="flex items-center p-2 hover:bg-gray-800 rounded cursor-pointer">
-                <LayoutDashboard className="w-4 h-4 mr-2" />
-                <Link href="/Dashboard" passHref>
+            <div className="flex items-center p-2 hover:bg-gray-800 rounded cursor-pointer">
+              <LayoutDashboard className="w-4 h-4 mr-2" />
+              <Link href="/Dashboard" passHref>
                 {isSidebarOpen && <span className="ml-2">Dashboard</span>}
-                </Link>
-              </div>
-              {navItems.map((item) => (
-                <div key={String(item.main_board_id)} className="mb-4">
-                  {/* Main Board Header */}
-                  <div
-                    className="flex items-center justify-between p-2 hover:bg-gray-800 rounded cursor-pointer"
-                    onClick={() => toggleMainBoard(String(item.main_board_id))}
-                  >
-                    <div className="flex items-center">
-                      {activeMainBoard === String(item.main_board_id) ? (
-                        <ChevronDown className="w-4 h-4 mr-2" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 mr-2" />
-                      )}
-                      <span>{item.name}</span> {/* Display main board name */}
-                    </div>
-                    <Plus
-                      className="w-4 h-4 hover:text-blue-400"
-                      onClick={(e) => handlePlusClick(e, String(item.main_board_id))}
-                    />
+              </Link>
+            </div>
+            {navItems.map((item) => (
+              <div key={String(item.main_board_id)} className="mb-4">
+                {/* Main Board Header */}
+                <div
+                  className="flex items-center justify-between p-2 hover:bg-gray-800 rounded cursor-pointer"
+                  onClick={() => toggleMainBoard(String(item.main_board_id))}
+                >
+                  <div className="flex items-center">
+                    {activeMainBoard === String(item.main_board_id) ? (
+                      <ChevronDown className="w-4 h-4 mr-2" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 mr-2" />
+                    )}
+                    {/* Show name only if sidebar is open */}
+                    {isSidebarOpen && <span className="ml-2">{item.name}</span>}
                   </div>
-
-                  {/* Boards Dropdown */}
-                  {activeMainBoard === String(item.main_board_id) && isSidebarOpen &&(
-
-                    <div className="ml-6 mt-2 space-y-2">
-                      {Object.keys(item.boards)
-                        .filter((boardId) => item.boards[boardId].is_active)
-                        .map((boardId) => (
-                          <div
-                            key={boardId}
-                            className="flex items-center justify-between p-2 hover:bg-gray-800 rounded"
-                          >
-                            {/* Board Link */}
-                            <Link
-                              href={{
-                                pathname: "/Container",
-                                query: {
-                                  main_board_id: item.main_board_id,
-                                  board_id: boardId,
-                                },
-                              }}
-                              className="dropdown-link text-white"
-                            >
-                              {item.boards[boardId].name}
-                            </Link>
-
-                            {/* Edit and Delete Icons */}
-                            <div className="flex space-x-2">
-                              <Edit2
-                                className="w-4 h-4 hover:text-blue-400 cursor-pointer"
-                                onClick={() => handleEditClick(boardId, item.main_board_id)}
-                              />
-                              <Trash2
-                                className="w-4 h-4 hover:text-red-400 cursor-pointer"
-                                onClick={() => handleDelete(boardId, item.main_board_id)}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
+                  <Plus
+                    className="w-4 h-4 hover:text-blue-400"
+                    onClick={(e) => handlePlusClick(e, String(item.main_board_id))}
+                  />
                 </div>
-              ))}
 
-              <div className="flex items-center p-2 hover:bg-gray-800 rounded cursor-pointer">
-                <ChartLine className="w-4 h-4 mr-2" />
-                {isSidebarOpen && <span className="ml-2">Docs Review</span>}
+                {/* Boards Dropdown */}
+                {activeMainBoard === String(item.main_board_id) && isSidebarOpen && (
+
+                  <div className="ml-6 mt-2 space-y-2">
+                    {Object.keys(item.boards)
+                      .filter((boardId) => item.boards[boardId].is_active)
+                      .map((boardId) => (
+                        <div
+                          key={boardId}
+                          className={`flex items-center justify-between p-2 rounded cursor-pointer ${
+                            activeBoardId === boardId ? "bg-gray-800 text-white" : "hover:bg-blue-700"
+                          }`}
+                          onClick={() => handleBoardClick(boardId)}
+                        >
+                          {/* Board Link */}
+                          <Link
+                            href={{
+                              pathname: "/Container",
+                              query: {
+                                main_board_id: item.main_board_id,
+                                board_id: boardId,
+                              },
+                            }}
+                            className="dropdown-link text-white"
+                          >
+                            {item.boards[boardId].name}
+                          </Link>
+
+                          {/* Edit and Delete Icons */}
+                          <div className="flex space-x-2">
+                            <Edit2
+                              className="w-4 h-4 hover:text-blue-400 cursor-pointer"
+                              onClick={() => handleEditClick(boardId, item.main_board_id)}
+                            />
+                            <Trash2
+                              className="w-4 h-4 hover:text-red-400 cursor-pointer"
+                              onClick={() => handleDelete(boardId, item.main_board_id)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
+            ))}
+
+            <div className="flex items-center p-2 hover:bg-gray-800 rounded cursor-pointer">
+              <ChartLine className="w-4 h-4 mr-2" />
+              {isSidebarOpen && <span className="ml-2">Docs Review</span>}
             </div>
           </div>
-
         </div>
+
+      </div>
       {/* )} */}
 
 
@@ -623,7 +638,7 @@ const Sidebar: React.FC<SidebarProps> = ({ clientUserId }) => {
         <div className="p-4 border-t border-gray-800">
           <button
             onClick={handleLogout}
-            className="w-full py-2 px-4 bg-teal-600 hover:bg-gray-400 rounded text-white"
+            className="w-full py-2 px-4 bg-blue-600 hover:bg-gray-400 rounded text-white"
           >
             Logout
           </button>
@@ -713,7 +728,8 @@ export default Sidebar;
 
 
 
-function setMainBoardId(id: any) {
-  throw new Error('Function not implemented.');
+
+function setMainBoardId(_id: string) {
+  throw new Error(`Setting main board ID to: ${_id}`);
 }
 
