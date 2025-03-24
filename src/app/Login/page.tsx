@@ -34,7 +34,7 @@ export default function Login() {
     }
   
     try {
-      const response = await fetch('http://143.110.180.27:8003/client-users/login', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/client-users/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
