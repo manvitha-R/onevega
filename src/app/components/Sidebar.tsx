@@ -121,56 +121,7 @@ const toggleSidebar = () => {
 };
 
 
-// Resize functions
-const handleMouseDown = (e: { preventDefault: () => void; }) => {
-  e.preventDefault();
-  setIsResizing(true);
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
-};
 
-
-const handleMouseMove = (e: { clientX: number; }) => {
-  if (!isResizing) return;
-  
-  // Calculate new width based on mouse position
-  const newWidth = Math.max(64, Math.min(400, e.clientX));
-  
-  // Update width state
-  setSidebarWidth(newWidth);
-  
-  // Also update the isSidebarOpen state based on width
-  if (newWidth <= 100 && isSidebarOpen) {
-    setIsSidebarOpen(false);
-  } else if (newWidth > 100 && !isSidebarOpen) {
-    setIsSidebarOpen(true);
-  }
-};
-
-const handleMouseUp = () => {
-  setIsResizing(false);
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', handleMouseUp);
-};
-
-// Clean up event listeners when component unmounts
-useEffect(() => {
-  return () => {
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
-}, [isResizing]); // Add isResizing to the dependency array
-
-// CSS to disable text selection during resize
-useEffect(() => {
-  if (isResizing) {
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'ew-resize';
-  } else {
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
-  }
-}, [isResizing]);
 
 
   useEffect(() => {
@@ -1268,22 +1219,7 @@ useEffect(() => {
       )}
 
        {/* Resize handle - positioned at the right edge */}
-    <div
-      className="absolute top-0 right-0 w-3 h-full bg-transparent cursor-ew-resize z-50"
-      onMouseDown={handleMouseDown}
-      style={{
-        touchAction: 'none', // Prevents scrolling on touch devices
-      }}
-    >
-      {/* Visual indicator for the resize handle */}
-      <div 
-        className="absolute top-0 right-0 w-1 h-full" 
-        style={{
-          background: isResizing ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.3)',
-          transition: 'background 0.2s'
-        }}
-      />
-    </div>
+  
     </div>
 
 
