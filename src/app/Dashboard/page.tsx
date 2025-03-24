@@ -72,14 +72,14 @@ export default function Page() {
 
     // Fetch user details from localStorage inside useEffect
     useEffect(() => {
-      if (typeof window !== "undefined") {
+     
         setUser({
           name: localStorage.getItem("loggedInUserName") || "",
           email: localStorage.getItem("loggedInUserEmail") || "",
           id: localStorage.getItem("loggedInUserId") || "",
           role: localStorage.getItem("loggedInUserRole") || "",
         });
-      }
+ 
     }, []);
 
 
@@ -109,7 +109,7 @@ export default function Page() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b p-4 flex justify-between items-center shadow-md">
-          <h1 className="text-xl font-semibold">Sales Analysis Board</h1>
+          <h1 className="text-xl font-semibold">Analysis Board</h1>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 cursor-pointer"
               onClick={toggleDropdown}>

@@ -4,14 +4,14 @@ import { useState, useEffect, SetStateAction, useRef, ReactNode } from "react";
 import PptxGenJS from "pptxgenjs";
 import { useSearchParams } from "next/navigation";
 // import { MdManageSearch } from "react-icons/md";
-import { FaPlay, FaPen, FaTrash } from "react-icons/fa";
-import { FaFileUpload, FaCaretUp, FaCaretDown, FaUpload, FaTimes } from 'react-icons/fa';
+import { FaPlay, FaPen, FaTrash, FaEdit } from "react-icons/fa";
+import { FaFileUpload, FaCaretUp, FaCaretDown, FaUpload, FaTimes, FaComment } from 'react-icons/fa';
 import axios from "axios";
 import React from "react";
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 // import { useDropzone } from "react-dropzone";
-
+import { PencilIcon, TrashIcon, PlusIcon, CheckIcon, ChevronUpIcon, ChevronDownIcon, Edit } from 'lucide-react';
 import { Pie, Bar, Line } from "react-chartjs-2";
 import { MdArrowDropDown, MdArrowDropUp } from 'react-icons/md';
 import {
@@ -29,6 +29,7 @@ import {
 import Spinner from "../components/Spinner";
 import { FiEdit, FiSave } from "react-icons/fi";
 import { Settings, User } from "lucide-react";
+import { toast } from "react-toastify";
 ChartJS.register(
   ArcElement,
   BarElement,
@@ -92,6 +93,7 @@ interface ChartData {
 
 
 export default function Page() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   const searchParams = useSearchParams();
   const boardId = searchParams.get("board_id");
   // type Prompt = {
@@ -121,6 +123,7 @@ export default function Page() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModallOpen, setIsModallOpen] = useState(false);
   type RunResult = {
+    data: any;
     message: string[];
     table: {
       columns: string[];
@@ -133,7 +136,8 @@ export default function Page() {
   const [isLoading, setIsLoading] = useState(false);
   const [view,] = useState("manage-tables");
   const [isRunClicked, setIsRunClicked] = useState(false);
-
+  const [hasReprompted, setHasReprompted] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -160,13 +164,135 @@ export default function Page() {
     name: string;
     configuration_details: Record<string, string>;
   };
-  // const chartStyles = {
-  //   medium: { width: '980px', height: '900px' },
-  //   small: { width: '550px', height: '800px' },
-  // };
   const [isOpen, setIsOpen] = useState(false);
-  // const [editRowId, setEditRowId] = React.useState(null);
-  // const [editValues, setEditValues] = React.useState({});
+  const [isCommentOpen, setIsCommentOpen] = useState(false);
+  type Comment = {
+    editedAt: any;
+    id: number;
+    text: string;
+    createdAt: string;
+  };
+
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [commentText, setCommentText] = useState('');
+  const [savedComments, setSavedComments] = useState<Comment[]>([]);
+  const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
+  // Store comments for each prompt
+  const [commentsMap, setCommentsMap] = useState<{
+    [promptId: string]: Array<{
+      id: number;
+      text: string;
+      createdAt: Date;
+      editedAt: Date | null;
+    }>
+  }>({});
+
+  // Open comment modal for a specific prompt
+  const handleCommentClick = (promptId: string) => {
+    setCurrentPromptId(promptId);
+    setIsCommentOpen(true);
+    setEditingCommentId(null);
+    setCommentText('');
+  };
+
+  // Close comment modal
+  const handleCloseComment = () => {
+    setIsCommentOpen(false);
+    setCommentText('');
+    setEditingCommentId(null);
+  };
+
+  // Get comments for current prompt
+  const getCurrentPromptComments = () => {
+    if (!currentPromptId) return [];
+    return commentsMap[currentPromptId] || [];
+  };
+
+
+
+  // Handle saving a comment
+  const handleSaveComment = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!commentText.trim() || !currentPromptId) return;
+
+    if (editingCommentId !== null) {
+      // Update existing comment
+      setCommentsMap(prev => {
+        const updatedComments = (prev[currentPromptId] || []).map(comment =>
+          comment.id === editingCommentId
+            ? { ...comment, text: commentText, editedAt: new Date() }
+            : comment
+        );
+
+        return {
+          ...prev,
+          [currentPromptId]: updatedComments
+        };
+      });
+
+      setEditingCommentId(null);
+    } else {
+      // Add new comment
+      const newComment = {
+        id: Date.now(),
+        text: commentText,
+        createdAt: new Date(),
+        editedAt: null
+      };
+
+      setCommentsMap(prev => ({
+        ...prev,
+        [currentPromptId]: [...(prev[currentPromptId] || []), newComment]
+      }));
+    }
+
+    // Clear the form
+    setCommentText('');
+  };
+
+
+  // Handle editing a comment
+  const handleEditComment = (commentId: number) => {
+    if (!currentPromptId) return;
+
+    const commentToEdit = commentsMap[currentPromptId]?.find(comment => comment.id === commentId);
+    if (commentToEdit) {
+      setCommentText(commentToEdit.text);
+      setEditingCommentId(commentId);
+    }
+  };
+
+  // Handle deleting a comment
+  const handleDeleteComment = (commentId: number) => {
+    if (!currentPromptId) return;
+
+    setCommentsMap(prev => {
+      const filteredComments = (prev[currentPromptId] || []).filter(
+        comment => comment.id !== commentId
+      );
+
+      return {
+        ...prev,
+        [currentPromptId]: filteredComments
+      };
+    });
+  };
+
+  // Format date for display
+  const formatDate = (date: Date | string | number) => {
+    if (!date) return '';
+    return new Date(date).toLocaleString();
+  };
+
+  // Get comment count for a specific prompt
+  const getCommentCount = (promptId: string): number => {
+    return commentsMap[promptId]?.length || 0;
+  };
+
+
 
   // Toggle dropdown
   const handleToggleDropdown = (id: SetStateAction<string | null>) => {
@@ -176,6 +302,57 @@ export default function Page() {
 
   const toggleDropdown = (rowId: string | boolean | ((prevState: boolean) => boolean)) => {
     setIsDropdownOpenn(isDropdownOpenn === rowId ? null : rowId as string);
+  };
+
+  const [items, setItems] = useState<Item[]>([]);
+  const [newItemMode, setNewItemMode] = useState<boolean>(false);
+  const [isNewItemDropdownOpen, setIsNewItemDropdownOpen] = useState<boolean>(false);
+
+
+  const [dropdownRows, setDropdownRows] = useState<{ key: string; value: string }[]>([
+    { key: '', value: '' },
+  ]);
+
+  const handleAddDropdownRow = () => {
+    setDropdownRows([...dropdownRows, { key: '', value: '' }]);
+  };
+
+  const handleDropdownInputChange = (index: number, field: 'key' | 'value', value: string) => {
+    const updatedRows = [...dropdownRows];
+    updatedRows[index][field] = value; // Now TypeScript knows field is either 'key' or 'value'
+    setDropdownRows(updatedRows);
+  };
+
+  const handleDeleteDropdownItem = (index: number) => {
+    const updatedRows = dropdownRows.filter((_, i) => i !== index);
+    setDropdownRows(updatedRows);
+  };
+
+  const handleEditDropdownItem = (index: number) => {
+    // Logic to handle editing the dropdown row
+    console.log("Editing dropdown row at index:", index);
+    // Example: Enable edit mode for the row or open a modal
+  };
+
+  // Mock functions for UI demonstration - these will be replaced with backend calls
+  const handleAddItem = () => {
+    // This will be replaced with your backend implementation
+    setNewItemMode(false);
+  };
+
+  const handleEditItem = (id: number) => {
+    // This will be replaced with your backend implementation
+    console.log(`Edit item with id: ${id}`);
+  };
+
+  const handleSaveItem = (id: number) => {
+    // This will be replaced with your backend implementation
+    console.log(`Save item with id: ${id}`);
+  };
+
+  const handleDeleteItem = (id: number) => {
+    // This will be replaced with your backend implementation
+    console.log(`Delete item with id: ${id}`);
   };
 
 
@@ -268,42 +445,595 @@ export default function Page() {
   };
 
 
-  const downloadPPT = () => {
-    let ppt = new PptxGenJS();
+  // IMPLEMENT THIS DIRECTLY INSTEAD OF USING PREVIOUS SOLUTIONS
 
-    const chartContainers = document.querySelectorAll('.chart-container');
-    runResult?.charts.forEach((chart: ChartData, index: number) => {
-      let slide = ppt.addSlide();
-      slide.addText(chart.chart_type.toUpperCase() + " Chart", {
-        x: 0.5,
-        y: 0.2,
-        fontSize: 18,
-        bold: true,
+
+  // The problem is likely in how event listeners are attached or the modal is created.
+  // This is a simpler implementation that should work reliably.
+
+  // This is your existing PPT download function, modified to work with React
+  const downloadPPT = (includeTableData = true, tableRowOption = 'limited') => {
+    console.log(`Downloading PPT with includeTableData=${includeTableData}, tableOption=${tableRowOption}`);
+
+    try {
+      // Create PptxGenJS instance
+      let ppt = new PptxGenJS();
+
+      // Set presentation properties for metadata
+      ppt.author = "Data Analysis Tool";
+      ppt.company = "Your Company Name";
+      ppt.subject = "Data Analysis Results";
+      ppt.title = "Insight Analysis Report";
+
+      // Define a professional theme color scheme
+      const THEME = {
+        primary: "2B579A", // Dark blue
+        secondary: "4472C4", // Accent blue
+        accent1: "ED7D31", // Orange
+        accent2: "70AD47", // Green
+        accent3: "5B9BD5", // Light blue
+        background: "FFFFFF", // White
+        text: "2F3542", // Dark gray
+        headerBackground: "F2F2F2" // Light gray
+      };
+
+      // Define slide masters
+      ppt.defineSlideMaster({
+        title: "MASTER_SLIDE",
+        background: { color: THEME.background },
+        margin: [0.5, 0.25, 0.5, 0.25],
+        slideNumber: { x: 0.5, y: "95%", fontFace: "Arial", fontSize: 8, color: "666666" },
+        objects: [
+          { rect: { x: 0, y: 0, w: "100%", h: 0.6, fill: { color: THEME.primary } } },
+          { rect: { x: 0, y: "97%", w: "100%", h: 0.2, fill: { color: THEME.primary } } }
+        ]
       });
 
-      // Convert chart canvas to image
-      if (chartContainers[index]) {
-        const canvas = chartContainers[index].querySelector('canvas');
-        if (canvas) {
-          let imgData = canvas.toDataURL("image/png", 1.0);
-          slide.addImage({ data: imgData, x: 0.5, y: 1.0, w: 6.5, h: 3.5 });
+      ppt.defineSlideMaster({
+        title: "CLEAN_MASTER_SLIDE",
+        background: { color: THEME.background },
+        margin: [0.5, 0.25, 0.5, 0.25],
+        slideNumber: { x: 0.5, y: "95%", fontFace: "Arial", fontSize: 8, color: "666666" }
+      });
+
+      // Helper function to split text across slides
+      const addTextAcrossSlides = (text: string | any[], title: string, options = {}) => {
+        const maxCharsPerSlide = 800;
+
+        if (!text || text.length === 0) return;
+
+        // Split text into chunks
+        const textChunks = [];
+        let currentText = Array.isArray(text) ? text.join("\n") : String(text);
+
+        while (currentText.length > 0) {
+          if (currentText.length <= maxCharsPerSlide) {
+            textChunks.push(currentText);
+            break;
+          }
+
+          let breakPoint = currentText.lastIndexOf('\n', maxCharsPerSlide);
+          if (breakPoint === -1 || breakPoint < maxCharsPerSlide * 0.5) {
+            breakPoint = currentText.lastIndexOf('. ', maxCharsPerSlide);
+            if (breakPoint === -1 || breakPoint < maxCharsPerSlide * 0.4) {
+              breakPoint = currentText.lastIndexOf(' ', maxCharsPerSlide);
+            }
+          }
+
+          if (breakPoint === -1) breakPoint = maxCharsPerSlide;
+
+          textChunks.push(currentText.substring(0, breakPoint));
+          currentText = currentText.substring(breakPoint).trim();
+        }
+
+        // Create slides for each chunk
+        const totalSlides = textChunks.length;
+        textChunks.forEach((chunk, index) => {
+          const slide = ppt.addSlide({ masterName: "CLEAN_MASTER_SLIDE" });
+
+          slide.addText(`${title}${totalSlides > 1 ? ` (${index + 1}/${totalSlides})` : ''}`, {
+            x: 0.5,
+            y: 0.7,
+            fontSize: 20,
+            fontFace: "Arial",
+            color: THEME.primary,
+            bold: true,
+            align: "left"
+          });
+
+          slide.addText(chunk, {
+            x: 0.5,
+            y: 1.3,
+            w: 8.5,
+            h: 5.0,
+            fontSize: 13,
+            fontFace: "Arial",
+            color: THEME.text,
+            wrap: true,
+            breakLine: true,
+            valign: "top",
+            lineSpacing: 16,
+            ...options
+          });
+
+          if (index < totalSlides - 1) {
+            slide.addText("Continued on next slide...", {
+              x: 0.5,
+              y: 6.5,
+              fontSize: 10,
+              fontFace: "Arial",
+              italic: true,
+              color: "666666",
+            });
+          }
+        });
+      };
+
+      // Title slide
+      const titleSlide = ppt.addSlide({ masterName: "MASTER_SLIDE" });
+      titleSlide.addText("Insights Analysis Report", {
+        x: 0.5,
+        y: 2.0,
+        fontFace: "Arial",
+        fontSize: 36,
+        color: THEME.primary,
+        bold: true,
+        align: "center"
+      });
+
+      titleSlide.addText("Generated on " + new Date().toLocaleDateString(), {
+        x: 0.5,
+        y: 3.0,
+        fontFace: "Arial",
+        fontSize: 18,
+        color: THEME.text,
+        align: "center"
+      });
+
+      // Add prompts if available
+      if (typeof prompts !== 'undefined' && prompts.length > 0) {
+        const promptTexts = prompts.map(prompt => prompt.prompt_text).join("\n\n");
+        addTextAcrossSlides(promptTexts, "Prompt");
+      }
+
+      // Add table data slides (only if includeTableData is true)
+      if (includeTableData && runResult?.table && runResult.table.data.length > 0) {
+        try {
+          // Get columns from runResult.table
+          const columns = runResult.table.columns;
+
+          // Prepare table header with styling
+          const tableHeader = columns.map(col => ({
+            text: col,
+            fontFace: "Arial",
+            bold: true,
+            fill: THEME.headerBackground,
+            color: THEME.primary,
+            fontSize: 11,
+          }));
+
+          // IMPORTANT: Determine data to display based on the tableRowOption
+          let dataToDisplay;
+          if (tableRowOption === 'all') {
+            console.log(`Using ALL ${runResult.table.data.length} rows from data`);
+            dataToDisplay = runResult.table.data;
+          } else {
+            // Use limited data (default 20 rows)
+            const limitRows = Math.min(20, runResult.table.data.length);
+            console.log(`Using LIMITED ${limitRows} rows from data`);
+            dataToDisplay = runResult.table.data.slice(0, limitRows);
+          }
+
+          // Check if we need to use horizontal column splitting
+          const COLUMNS_PER_SLIDE_THRESHOLD = 8; // Adjust this threshold as needed
+
+          if (columns.length > COLUMNS_PER_SLIDE_THRESHOLD) {
+            // We have many columns, use horizontal splitting approach
+            console.log(`Table has ${columns.length} columns, using horizontal splitting`);
+
+            // First, add a column navigator slide
+            const navSlide = ppt.addSlide({ masterName: "CLEAN_MASTER_SLIDE" });
+
+            navSlide.addText("Table Column Navigator", {
+              x: 0.5,
+              y: 0.7,
+              fontSize: 20,
+              fontFace: "Arial",
+              color: THEME.primary,
+              bold: true,
+              align: "left"
+            });
+
+            navSlide.addText(
+              `This table contains ${columns.length} columns which have been split across multiple slides for better readability.`,
+              {
+                x: 0.5,
+                y: 1.3,
+                w: 8.5,
+                fontSize: 14,
+                fontFace: "Arial",
+                color: THEME.text,
+                wrap: true
+              }
+            );
+
+            // Determine how many columns to show per slide
+            const columnsPerSlide = 8; // Adjust based on readability
+            const totalColumnSlides = Math.ceil(columns.length / columnsPerSlide);
+
+            // Show column distribution
+            let columnDistText = "Column groups:\n";
+            for (let i = 0; i < totalColumnSlides; i++) {
+              const startCol = i * columnsPerSlide;
+              const endCol = Math.min(startCol + columnsPerSlide, columns.length);
+              columnDistText += `• Slide ${i + 1}: Columns ${startCol + 1}-${endCol} (${columns.slice(startCol, endCol).join(", ")})\n`;
+            }
+
+            navSlide.addText(columnDistText, {
+              x: 0.5,
+              y: 2.0,
+              w: 8.5,
+              h: 4.0,
+              fontSize: 12,
+              fontFace: "Arial",
+              color: THEME.text,
+              wrap: true,
+              breakLine: true,
+              valign: "top"
+            });
+
+            // Create slides for each column group
+            for (let colSlideIndex = 0; colSlideIndex < totalColumnSlides; colSlideIndex++) {
+              // Calculate column range for this slide
+              const startCol = colSlideIndex * columnsPerSlide;
+              const endCol = Math.min(startCol + columnsPerSlide, columns.length);
+              const currentColumnSet = columns.slice(startCol, endCol);
+
+              // Get table header for this subset of columns
+              const partialTableHeader = currentColumnSet.map(col => ({
+                text: col,
+                fontFace: "Arial",
+                bold: true,
+                fill: THEME.headerBackground,
+                color: THEME.primary,
+                fontSize: 11,
+              }));
+
+              // Determine rows per slide - can fit more rows with fewer columns
+              const rowsPerSlide = Math.min(15, dataToDisplay.length);
+
+              // Calculate number of row slides needed for this column group
+              const rowSlidesNeeded = Math.ceil(dataToDisplay.length / rowsPerSlide);
+
+              // Create slides for each row chunk
+              for (let rowSlideIndex = 0; rowSlideIndex < rowSlidesNeeded; rowSlideIndex++) {
+                const startRow = rowSlideIndex * rowsPerSlide;
+                const endRow = Math.min(startRow + rowsPerSlide, dataToDisplay.length);
+
+                // Format current chunk of data for only these columns
+                const currentRows = dataToDisplay.slice(startRow, endRow).map(row =>
+                  row.slice(startCol, endCol).map(cell => ({
+                    text: String(cell || ''), // Convert to string to handle non-string data
+                    fontFace: "Arial",
+                    fontSize: 10,
+                    color: THEME.text
+                  }))
+                );
+
+                // Create slide
+                let tableSlide = ppt.addSlide({ masterName: "CLEAN_MASTER_SLIDE" });
+
+                // Add title showing which part of the table this is
+                tableSlide.addText(
+                  `Table Data - Columns ${startCol + 1} to ${endCol} of ${columns.length}`,
+                  {
+                    x: 0.5,
+                    y: 0.5,
+                    fontSize: 18,
+                    fontFace: "Arial",
+                    color: THEME.primary,
+                    bold: true,
+                    align: "left"
+                  }
+                );
+
+                // Add subtitle showing column and row range
+                tableSlide.addText(
+                  `Column Group ${colSlideIndex + 1}/${totalColumnSlides} • Rows ${startRow + 1}-${endRow} of ${dataToDisplay.length}`,
+                  {
+                    x: 0.5,
+                    y: 1.0,
+                    fontSize: 14,
+                    fontFace: "Arial",
+                    color: THEME.secondary
+                  }
+                );
+
+                // Combine header with data
+                const formattedData = [partialTableHeader, ...currentRows];
+
+                // Calculate optimal column widths for this subset
+                const availableWidth = 8.5;
+                const colWidth = availableWidth / currentColumnSet.length;
+
+                // Add table to slide with properly sized columns
+                tableSlide.addTable(formattedData, {
+                  x: 0.5,
+                  y: 1.4,
+                  w: availableWidth,
+                  border: { pt: 0.5, color: "CFCFCF" },
+                  colW: currentColumnSet.map(() => colWidth), // Proper width for visible columns
+                  rowH: Array(formattedData.length).fill(0.3),
+                  fill: { color: "FFFFFF" },
+                  valign: "middle",
+                  align: "center", // Center alignment for better readability
+                  fontSize: 10,
+                  autoPage: true // Automatically paginate table rows if needed
+                });
+
+                // Add navigation hints
+                let navText = "";
+
+                if (rowSlideIndex < rowSlidesNeeded - 1) {
+                  navText += "• More rows on next slide";
+                }
+
+                if (colSlideIndex < totalColumnSlides - 1) {
+                  if (navText) navText += " • ";
+                  navText += "More columns on following slides";
+                }
+
+                if (navText) {
+                  tableSlide.addText(navText, {
+                    x: 0.5,
+                    y: 6.5,
+                    fontSize: 10,
+                    fontFace: "Arial",
+                    italic: true,
+                    color: "666666"
+                  });
+                }
+              }
+            }
+          } else {
+            // For tables with fewer columns, use the original row-based pagination approach
+            // Determine rows per slide based on number of columns
+            const rowsPerSlide = Math.max(10, Math.min(10, Math.floor(20 / columns.length)));
+
+            // Calculate number of slides needed for rows
+            const totalSlides = Math.ceil(dataToDisplay.length / rowsPerSlide);
+
+            // Create a slide for each chunk of data
+            for (let slideIndex = 0; slideIndex < totalSlides; slideIndex++) {
+              const startRow = slideIndex * rowsPerSlide;
+              const endRow = Math.min(startRow + rowsPerSlide, dataToDisplay.length);
+
+              let tableSlide = ppt.addSlide({ masterName: "CLEAN_MASTER_SLIDE" });
+
+              // Add descriptive title with pagination info
+              tableSlide.addText(`Table Data (${slideIndex + 1}/${totalSlides})`, {
+                x: 0.5,
+                y: 0.7,
+                fontSize: 20,
+                fontFace: "Arial",
+                color: THEME.primary,
+                bold: true,
+                align: "left"
+              });
+
+              // Format current chunk of data
+              const currentRows = dataToDisplay.slice(startRow, endRow).map(row =>
+                row.map(cell => ({
+                  text: String(cell || ''), // Convert to string to handle non-string data
+                  fontFace: "Arial",
+                  fontSize: 10,
+                  color: THEME.text
+                }))
+              );
+
+              // Combine header with data
+              const formattedData = [tableHeader, ...currentRows];
+
+              // Add table to slide
+              tableSlide.addTable(formattedData, {
+                x: 0.5,
+                y: 1.3,
+                w: 8.5,
+                border: { pt: 0.5, color: "CFCFCF" },
+                colW: columns.map(() => 8.5 / columns.length), // Distribute width evenly
+                rowH: Array(formattedData.length).fill(0.3),
+                fill: { color: "FFFFFF" },
+                valign: "middle"
+              });
+
+              // Add navigation info with appropriate message based on the option
+              let rowInfoText = "";
+              if (tableRowOption === 'all') {
+                rowInfoText = `Showing rows ${startRow + 1} to ${endRow} of ${dataToDisplay.length} total rows`;
+              } else {
+                rowInfoText = `Showing rows ${startRow + 1} to ${endRow} of 20 ${runResult.table.data.length > 20 ? `(limited from ${runResult.table.data.length} total rows)` : ''}`;
+              }
+
+              tableSlide.addText(rowInfoText, {
+                x: 0.5,
+                y: 6.5,
+                fontSize: 10,
+                fontFace: "Arial",
+                italic: true,
+                color: "666666",
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error creating table slides:", error);
+          const errorSlide = ppt.addSlide({ masterName: "CLEAN_MASTER_SLIDE" });
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          errorSlide.addText(`Could not display table data: ${errorMessage}`, {
+            x: 0.5,
+            y: 2.0,
+            fontSize: 12,
+            fontFace: "Arial",
+            color: "FF0000",
+          });
         }
       }
 
-      // Add insights
-      if (chart.insight && chart.insight.length) {
-        // slide.addText("Insights:", { x: 0.5, y: 4.6, fontSize: 14, bold: true });
-        let insightsText = chart.insight.map((insight) => `• ${insight}`).join("\n");
-        slide.addText(insightsText, { x: 0.5, y: 4.8, fontSize: 12 });
-      }
-    });
+      // Add chart slides if available
+      if (runResult?.charts && runResult.charts.length > 0) {
+        const chartContainers = document.querySelectorAll('.chart-container');
+        runResult.charts.forEach((chart, index) => {
+          let slide = ppt.addSlide({ masterName: "CLEAN_MASTER_SLIDE" });
 
-    ppt.writeFile({ fileName: "Charts_Presentation.pptx" });
+          // Add chart title
+          slide.addText(chart.chart_type.toUpperCase() + " Chart", {
+            x: 0.5,
+            y: 0.7,
+            fontSize: 20,
+            fontFace: "Arial",
+            color: THEME.primary,
+            bold: true,
+            align: "left"
+          });
+
+          // Make chart image smaller to leave room for insights
+          if (chartContainers[index]) {
+            const canvas = chartContainers[index].querySelector('canvas');
+            if (canvas) {
+              let imgData = canvas.toDataURL("image/png", 1.0);
+              // Position chart on the left side, reduce width
+              slide.addImage({ data: imgData, x: 0.5, y: 1.3, w: 4.5, h: 3.5 });
+            }
+          }
+
+          // Add insights beside the chart (on the right side)
+          if (chart.insight && chart.insight.length) {
+            // Add title for insights section
+            slide.addText("Key Insights:", {
+              x: 5.5, // Position to the right of chart
+              y: 1.3,
+              fontSize: 14,
+              fontFace: "Arial",
+              color: THEME.primary,
+              bold: true,
+            });
+
+            // Calculate maximum insights that can fit
+            const maxInsightsOnSlide = Math.min(8, chart.insight.length);
+
+            // Add insights as a group with shorter height
+            for (let i = 0; i < maxInsightsOnSlide; i++) {
+              // Truncate long insights to prevent overflow
+              let insightText = chart.insight[i];
+              if (insightText.length > 80) {
+                insightText = insightText.substring(0, 77) + '...';
+              }
+
+              slide.addText(insightText, {
+                x: 5.5,
+                y: 1.7 + (i * 0.4), // More compact spacing
+                w: 3.5, // Fixed width to prevent overflow
+                h: 0.35, // Fixed height
+                fontSize: 11, // Smaller font size
+                fontFace: "Arial",
+                color: THEME.text,
+                bullet: { type: "bullet" },
+                wrap: true, // Enable text wrapping
+                breakLine: true // Break long lines
+              });
+            }
+
+            // If there are too many insights to fit, add pagination
+            if (chart.insight.length > maxInsightsOnSlide) {
+              slide.addText(`+ ${chart.insight.length - maxInsightsOnSlide} more insights`, {
+                x: 5.5,
+                y: 1.7 + (maxInsightsOnSlide * 0.4),
+                fontSize: 10,
+                fontFace: "Arial",
+                italic: true,
+                color: THEME.secondary,
+              });
+
+              // Create additional slides for remaining insights
+              const remainingInsights = chart.insight.slice(maxInsightsOnSlide);
+              const insightsPerAdditionalSlide = 12; // More insights on dedicated slides
+              const additionalSlidesNeeded = Math.ceil(remainingInsights.length / insightsPerAdditionalSlide);
+
+              for (let slideIdx = 0; slideIdx < additionalSlidesNeeded; slideIdx++) {
+                const insightStartIdx = slideIdx * insightsPerAdditionalSlide;
+                const insightEndIdx = Math.min(insightStartIdx + insightsPerAdditionalSlide, remainingInsights.length);
+                const currentInsights = remainingInsights.slice(insightStartIdx, insightEndIdx);
+
+                const additionalSlide = ppt.addSlide({ masterName: "CLEAN_MASTER_SLIDE" });
+
+                additionalSlide.addText(`${chart.chart_type.toUpperCase()} Chart - Additional Insights (${slideIdx + 1}/${additionalSlidesNeeded})`, {
+                  x: 0.5,
+                  y: 0.7,
+                  fontSize: 20,
+                  fontFace: "Arial",
+                  color: THEME.primary,
+                  bold: true,
+                  align: "left"
+                });
+
+                // Add all remaining insights on additional slides
+                currentInsights.forEach((insight, idx) => {
+                  additionalSlide.addText(insight, {
+                    x: 0.5,
+                    y: 1.3 + (idx * 0.4),
+                    w: 8.5,
+                    h: 0.35,
+                    fontSize: 12,
+                    fontFace: "Arial",
+                    color: THEME.text,
+                    bullet: { type: "bullet" },
+                    wrap: true,
+                    breakLine: true
+                  });
+                });
+              }
+            }
+          }
+        });
+      }
+
+      // Generate proper filename based on options
+      let fileName = "Analysis_Report";
+      if (!includeTableData) {
+        fileName += "_Charts_Only";
+      } else if (tableRowOption === 'all') {
+        fileName += "_All_Data";
+      } else {
+        fileName += "_Limited_Data";
+      }
+      fileName += ".pptx";
+
+      // Save the file
+      ppt.writeFile({ fileName: fileName });
+    } catch (error) {
+      console.error("An error occurred:", error);
+    }
   };
-  // Handle input changes
-  // const handleChangess = (key: any, value: any) => {
-  //   setEditValues((prev) => ({ ...prev, [key]: value }));
-  // };
+
+  // React component for the download button with modal
+  const DownloadPPTButton = () => {
+    const [showModal, setShowModal] = useState(false);
+
+    const handleDownloadClick = () => {
+      setShowModal(true);
+    };
+  };
+
+  // Alternative approach - if you're using a different selector or button
+  // You can uncomment and modify this code as needed:
+  /*
+  const setupAlternativeButton = () => {
+    const downloadButton = document.querySelector('.download-button');
+    if (downloadButton) {
+      downloadButton.addEventListener('click', showDownloadOptions);
+    }
+  };
+  setupAlternativeButton();
+  */
 
   // Save changes
   // const handleEditClicks = async (id: string, boardId: any) => {
@@ -359,12 +1089,46 @@ export default function Page() {
   //   }
   // };
 
+
+
+  // Load comments from localStorage on component mount
+  useEffect(() => {
+    const savedComments = localStorage.getItem('promptComments');
+    if (savedComments) {
+      try {
+        const parsed = JSON.parse(savedComments);
+
+        // Process the dates in the parsed data
+        const processedComments: { [key: string]: any[] } = {};
+
+        Object.keys(parsed).forEach(promptId => {
+          processedComments[promptId] = parsed[promptId].map((comment: any) => ({
+            ...comment,
+            createdAt: new Date(comment.createdAt),
+            editedAt: comment.editedAt ? new Date(comment.editedAt) : null
+          }));
+        });
+
+        setCommentsMap(processedComments);
+      } catch (error) {
+        console.error('Error loading comments:', error);
+      }
+    }
+  }, []);
+
+  // Save comments to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('promptComments', JSON.stringify(commentsMap));
+  }, [commentsMap]);
+
+
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Fetch the AI Documentation data from the API
         const response = await axios.get(
-          `http://143.110.180.27:8003/main-boards/boards/ai-documentation/`,
+          `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/ai-documentation/`,
           {
             headers: {
               "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp",
@@ -419,7 +1183,7 @@ export default function Page() {
       console.log("Payload being sent:", JSON.stringify(updatedData, null, 2));
 
       const response = await fetch(
-        `http://143.110.180.27:8003/main-boards/boards/ai-documentation/${id}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/ai-documentation/${id}`,
         {
           method: "PUT",
           headers: {
@@ -553,7 +1317,7 @@ export default function Page() {
       setLoading(true);
       try {
         const response = await fetch(
-          `http://143.110.180.27:8003/main-boards/boards/data-management-table/get_all_tables_with_files`,
+          `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/get_all_tables_with_files`,
           {
             headers: {
               "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp",
@@ -594,12 +1358,12 @@ export default function Page() {
     const fetchPrompts = async () => {
       if (!boardId) return;
 
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
 
       try {
         const response = await fetch(
-          `http://143.110.180.27:8003/main-boards/boards/prompts/boards/${boardId}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/prompts/boards/${boardId}`,
           {
             headers: {
               "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp", // Add API Key
@@ -627,7 +1391,7 @@ export default function Page() {
         setError(error instanceof Error ? error.message : "An unknown error occurred");
         console.error("Error fetching prompts:", error);
       } finally {
-        setLoading(false);
+        setIsLoading(false); // Set loading to false when fetching is done
       }
     };
 
@@ -656,7 +1420,7 @@ export default function Page() {
     try {
       // Create the URL with query parameters
       const url = new URL(
-        `http://143.110.180.27:8003/main-boards/boards/prompts/run_prompt_v2/`
+        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/prompts/run_prompt_v2?`
       );
       url.searchParams.append("input_text", promptText);
       url.searchParams.append("board_id", boardId);  // Ensure boardId is set properly
@@ -714,13 +1478,13 @@ export default function Page() {
       await handleRunnPrompt(promptText); // Run the prompt
       setIsResultModalOpen(true);  // Open the modal with results
 
-      // Automatically set active tab based on the result type
-      if ((runResult?.message ?? []).length > 0) {
-        setActiveTab('message');
+      // Check for charts first to prioritize them
+      if ((runResult?.charts ?? []).length > 0) {
+        setActiveTab('charts');
       } else if (runResult?.table && runResult.table.columns?.length > 0) {
         setActiveTab('table');
-      } else if ((runResult?.charts ?? []).length > 0) {
-        setActiveTab('charts');
+      } else if ((runResult?.message ?? []).length > 0) {
+        setActiveTab('message');
       } else {
         setActiveTab('message'); // Default to message if no specific result type found
       }
@@ -752,6 +1516,14 @@ export default function Page() {
 
 
   const handleRunPrompt = async () => {
+
+
+    if (!hasReprompted) {
+      // Show popup if user hasn't clicked reprompt first
+      setShowPopup(true);
+      return;
+    }
+
     setIsLoading(true);
     setIsRunClicked(true); // Set to true when Run is clicked
 
@@ -772,7 +1544,7 @@ export default function Page() {
 
     try {
       const url = new URL(
-        "http://143.110.180.27:8003/main-boards/boards/prompts/run_prompt_v2/"
+        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/prompts/run_prompt_v2?`
       );
 
       // Append parameters
@@ -848,12 +1620,18 @@ export default function Page() {
       setIsLoading(false); // Reset loading state after API call (success or error)
     }
   };
+  const closePopup = () => {
+    setShowPopup(false);
+  };
+
 
   const handleRePrompt = async () => {
+    setHasReprompted(true);
+    setIsLoading(true); // Start loading
     try {
       // Make the API request to get a new prompt
       const response = await axios.post(
-        `http://143.110.180.27:8003/main-boards/boards/prompts/re_prompt`,
+        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/prompts/re_prompt?`,
         null, // No request body
         {
           params: {
@@ -896,6 +1674,8 @@ export default function Page() {
         console.error('Unknown Error:', error);
         alert('An unknown error occurred. Please try again later.');
       }
+    } finally {
+      setIsLoading(false); // Stop loading regardless of success or failure
     }
   };
 
@@ -970,7 +1750,7 @@ export default function Page() {
 
     try {
       const response = await fetch(
-        `http://143.110.180.27:8003/main-boards/boards/data-management-table/${row.id}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/${row.id}`,
         {
           method: "DELETE",
           mode: "cors",  // Ensures CORS compliance
@@ -1040,7 +1820,7 @@ export default function Page() {
   const handleDeletePrompt = async (promptId: string) => {
     try {
       const response = await fetch(
-        `http://143.110.180.27:8003/main-boards/boards/prompts/${promptId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/prompts/${promptId}`,
         {
           method: "DELETE",
           headers: {
@@ -1054,14 +1834,33 @@ export default function Page() {
       }
 
       // Show success alert
-      alert("Prompt deleted successfully!");
+      // Show success toast message
+      toast.success("Prompt deleted successfully!", {
+        position: "top-right",
+        autoClose: 3000, // Close after 3 seconds
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
 
       // Update the prompts list
       setPrompts(prompts.filter((prompt) => prompt.id !== promptId));
     } catch (error) {
       console.error("Failed to delete prompt:", error);
       // Show error alert
-      alert("Failed to delete prompt. Please try again.");
+      toast.error("Failed to delete prompt. Please try again.", {
+        position: "top-right",
+        autoClose: 3000, // Close after 3 seconds
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
     }
   };
 
@@ -1126,9 +1925,11 @@ export default function Page() {
   // };
 
   const handleSavePrompt = async () => {
+    setIsLoading(true); // Set loading to true when saving starts
     // Input validation
     if (!newPromptName.trim()) {
       alert("Prompt cannot be empty!");
+      setIsLoading(false); // Reset loading state
       return;
     }
     // if (newPromptName.length > 255) {
@@ -1137,6 +1938,7 @@ export default function Page() {
     // }
     if (!boardId) {
       alert("Error: boardId is missing.");
+      setIsLoading(false); // Reset loading state
       return;
     }
 
@@ -1144,6 +1946,7 @@ export default function Page() {
     const loggedInUserName = localStorage.getItem('loggedInUserName');
     if (!loggedInUserName || loggedInUserName.trim() === "") {
       alert("Error: User name is missing in localStorage. Please log in again.");
+      setIsLoading(false); // Reset loading state
       return;
     } // Fallback to "Unknown User" if not found
     console.log("Logged-in User:", loggedInUserName);
@@ -1161,8 +1964,8 @@ export default function Page() {
 
     // Determine the URL and method based on edit mode
     const url = editPromptId
-      ? `http://143.110.180.27:8003/main-boards/boards/prompts/${editPromptId}` // Update endpoint
-      : `http://143.110.180.27:8003/main-boards/boards/prompts/`; // Create endpoint
+      ? `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/prompts/${editPromptId}` // Update endpoint
+      : `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/prompts/`; // Create endpoint
 
     const method = editPromptId ? "PUT" : "POST";
 
@@ -1180,6 +1983,7 @@ export default function Page() {
       if (!response.ok) {
         const errorData = await response.json();
         alert(`Failed to save prompt: ${errorData.message || "Unknown error"}`);
+        setIsLoading(false); // Reset loading state
         return;
       }
 
@@ -1201,10 +2005,17 @@ export default function Page() {
       setIsModalOpen(false);
       setNewPromptName("");
       setEditPromptId(null);
+
+      // Redirect to "Manage Prompts" tab
+      setActiveTab("prompts"); // Redirect to the "prompts" tab
     } catch (error) {
       console.error("Network Error:", error);
       alert("Network error: Failed to save the prompt.");
+    } finally {
+      setIsLoading(false); // Reset loading state after the operation
     }
+    // Redirect to Manage Prompts page
+
   };
 
   // const onDrop = (acceptedFiles: SetStateAction<File | null>[]) => {
@@ -1262,7 +2073,7 @@ export default function Page() {
   //     console.log("Payload being sent:", updatedData);
 
   //     const response = await fetch(
-  //       "http://143.110.180.27:8003/main-boards/boards/ai-documentation/${id}",
+  //       "https://llm-backend-new-35486280762.us-central1.run.app/main-boards/boards/ai-documentation/${id}",
   //       {
   //         method: "PUT",
   //         headers: {
@@ -1305,7 +2116,7 @@ export default function Page() {
     // Make API request
     try {
       const response = await fetch(
-        `http://143.110.180.27:8003/main-boards/boards/data-management-table/status/upload/${selectedTableId}`, // Ensure you're using selectedTableId
+        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/status/upload/${selectedTableId}`, // Ensure you're using selectedTableId
         {
           method: "POST",
           headers: {
@@ -1355,7 +2166,7 @@ export default function Page() {
     try {
       const response = editRow
         ? await fetch(
-          `http://143.110.180.27:8003/main-boards/boards/data-management-table/${editRow.id}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/${editRow.id}`,
           {
             method: "PUT",
             headers: {
@@ -1366,7 +2177,7 @@ export default function Page() {
           }
         )
         : await fetch(
-          `http://143.110.180.27:8003/main-boards/boards/data-management-table/create`,
+          `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/create`,
           {
             method: "POST",
             headers: {
@@ -1435,6 +2246,18 @@ export default function Page() {
     }
     return truncated.trim();
   };
+
+  function handleDownloadClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
+    throw new Error("Function not implemented.");
+  }
+
+  function setShowModal(arg0: boolean): void {
+    throw new Error("Function not implemented.");
+  }
+
+  // function downloadPPT(arg0: boolean, arg1: string) {
+  //   throw new Error("Function not implemented.");
+  // }
 
   // useEffect(() => {
   //   if (runResult) {
@@ -1507,6 +2330,12 @@ export default function Page() {
           >
             <b>Timeline Settings</b>
           </button>
+          <button
+            className={`py-2 px-4 ${activeTab === "parameters" ? "border-b-4 border-blue-600" : ""}`}
+            onClick={() => setActiveTab("parameters")}
+          >
+            <b>Other Parameters</b>
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -1521,9 +2350,15 @@ export default function Page() {
                 New Prompts +
               </button>
             </div>
-            {isLoading && <Spinner />}
+            {/* Show spinner while loading */}
+            {/* {isLoading && (
+              <div className="flex justify-center">
+                <Spinner />
+              </div>
+            )} */}
             {/* {error && <p className="text-red-500">Error: {error}</p>} */}
-            {prompts.length > 0 && (
+            {!isLoading && prompts.length > 0 && (
+              // {prompts.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 p-6">
                 {prompts.map((prompt, index) => (
                   <div
@@ -1563,12 +2398,19 @@ export default function Page() {
                         >
                           <FaTrash />
                         </button>
+                        <button
+                          className="icon-btn comment-btn text-black relative"
+                          onClick={() => handleCommentClick(prompt.id)} // Use the actual prompt ID
+                        >
+                          <FaComment />
+                          {getCommentCount(prompt.id) > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                              {getCommentCount(prompt.id)}
+                            </span>
+                          )}
+                        </button>
                       </div>
-                      {/* {loadingPromptPlay === prompt.id && (
-                      <div className="loading-overlay">
-                        <div className="spinner"></div>
-                      </div>
-                    )} */}
+
                     </div>
                   </div>
                 ))}
@@ -1576,45 +2418,145 @@ export default function Page() {
 
 
             )}
+
+            {/* Show message if no prompts are found */}
+            {!isLoading && prompts.length === 0 && (
+              <p className="text-center text-gray-500">No prompts found.</p>
+            )}
+
           </>
         )}
 
         {activeTab === "repository" && (
           <div>
-            {isLoading && <Spinner />}
-            {loadingPromptsRepository ? (
+            {/* {isLoading && <Spinner />} */}
+            {/* {loadingPromptsRepository ? (
               <div className="loading-overlay flex justify-center items-center h-40">
                 <div className="spinner border-4 border-t-blue-500 border-gray-300 rounded-full w-10 h-10 animate-spin"></div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 p-6">
-                {prompts.length > 0 &&
-                  prompts.map((prompt, index) => (
-                    <div
-                      key={prompt.id}
-                      className="prompt-card border rounded-lg shadow-md p-4 bg-white transition-all duration-300 ease-in-out transform hover:scale-110 hover:shadow-2xl flex flex-col justify-between min-h-[200px]"
-                      onClick={() => handlePlayClick(prompt)}
+            ) : ( */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 p-6">
+              {prompts.length > 0 &&
+                prompts.map((prompt, index) => (
+                  <div
+                    key={prompt.id}
+                    className="prompt-card border rounded-lg shadow-md p-4 bg-white transition-all duration-300 ease-in-out transform hover:scale-110 hover:shadow-2xl flex flex-col justify-between min-h-[200px]"
+                    onClick={() => handlePlayClick(prompt)}
+                  >
+                    {/* Limit text to 4 lines with ellipsis */}
+                    <p
+                      className="text-lg font-semibold line-clamp-3 overflow-hidden text-ellipsis mb-6 flex-grow"
+                      title={prompt.prompt_text} // Tooltip on hover
                     >
-                      {/* Limit text to 4 lines with ellipsis */}
-                      <p
-                        className="text-lg font-semibold line-clamp-3 overflow-hidden text-ellipsis mb-6 flex-grow"
-                        title={prompt.prompt_text} // Tooltip on hover
-                      >
-                        {index + 1}. &quot;{prompt.prompt_text}&quot;
-                      </p>
-                      {/* Divider */}
-                      <hr className="my-3 border-t mt-6" />
-                      <div className="mt-4 text-sm">
-                        <p className="opacity-90 ">Created By:{prompt.user_name && prompt.user_name !== "undefined" ? prompt.user_name : "Shashi Raj"}</p>
-                        <p className="opacity-80">Updated: {new Date().toLocaleDateString()}</p>
-                      </div>
-
+                      {index + 1}. &quot;{prompt.prompt_text}&quot;
+                    </p>
+                    {/* Divider */}
+                    <hr className="my-3 border-t mt-6" />
+                    <div className="mt-4 text-sm">
+                      <p className="opacity-90 ">Created By:{prompt.user_name && prompt.user_name !== "undefined" ? prompt.user_name : "Shashi Raj"}</p>
+                      <p className="opacity-80">Updated: {new Date().toLocaleDateString()}</p>
                     </div>
-                  ))}
-              </div>
-            )}
+
+                  </div>
+                ))}
+            </div>
+
           </div>
         )}
+
+        {/* Inline Comment Modal */}
+        {isCommentOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            {/* Semi-transparent overlay */}
+            <div
+              className="absolute inset-0 bg-black bg-opacity-50"
+              onClick={handleCloseComment}
+            ></div>
+            <div className="bg-white w-96 max-w-md rounded-lg shadow-lg z-10 relative">
+              <div className="p-4 border-b flex justify-between items-center">
+                <h3 className="text-sm font-medium">
+                  {editingCommentId !== null ? 'Edit Comment' : 'Comments'}
+                </h3>
+                <button onClick={handleCloseComment} className="text-gray-500 hover:text-gray-700">
+                  <FaTimes size={14} />
+                </button>
+              </div>
+
+              {/* Existing Comments Section */}
+              {getCurrentPromptComments().length > 0 && !editingCommentId && (
+                <div className="px-4 py-2 max-h-60 overflow-y-auto">
+                  {getCurrentPromptComments().map((comment) => (
+                    <div key={String(comment.id)} className="border-b pb-2 mb-2 last:border-0">
+                      <div className="flex justify-between items-start">
+                        <p className="text-sm text-gray-800">{comment.text}</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditComment(Number(comment.id))}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteComment(Number(comment.id))}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {comment.editedAt
+                          ? `Edited: ${formatDate(comment.editedAt)}`
+                          : `Added: ${formatDate(comment.createdAt)}`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveComment} className="p-3">
+                <textarea
+                  className="w-full p-2 border rounded-md mb-3 h-24 text-sm"
+                  placeholder="Enter your comment here..."
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  required
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCloseComment}
+                    className="px-3 py-1 text-xs border rounded-md text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    {editingCommentId !== null ? 'Update' : 'Save'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* {comments.length > 0 && (
+          <div className="mt-4 border-t pt-3">
+            <h4 className="text-sm font-medium mb-2">Comments:</h4>
+            <ul className="space-y-2">
+              {comments.map(comment => (
+                <li key={comment.id} className="text-sm bg-gray-50 p-2 rounded">
+                  <p>{comment.text}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(comment.createdAt).toLocaleString()}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )} */}
 
         {isResultModalOpen && runResult && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
@@ -1664,14 +2606,7 @@ export default function Page() {
                     <div className="tab-content">
                       {activeTab === 'message' && runResult.message && (
                         <div className="message-tab">
-                          {runResult?.message && runResult.message.length > 0 ? (
-                            <div>
-                              {/* <h4 className="font-medium text-lg">Message:</h4> */}
-                              <p>{runResult.message[0]}</p>
-                            </div>
-                          ) : (
-                            <p>No message found.</p>
-                          )}
+                          <p>{runResult.message[0]}</p>
                         </div>
                       )}
 
@@ -1681,12 +2616,14 @@ export default function Page() {
                             <div className="mt-4">
 
                               {/* Download Excel Button */}
-                              <button
-                                onClick={downloadExcel}
-                                className="mb-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                              >
-                                Download
-                              </button>
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={downloadExcel}
+                                  className="mb-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                >
+                                  Download as Excel
+                                </button>
+                              </div>
                               {/* <h4 className="font-medium text-lg">Table Data:</h4> */}
                               <div className="max-h-94 overflow-y-auto border border-gray-300 rounded">
                                 <table className="min-w-full table-auto">
@@ -1732,12 +2669,80 @@ export default function Page() {
 
                       {activeTab === 'charts' && runResult.charts && (
                         <div className="charts-tab">
-                          <button
-                            onClick={downloadPPT}
-                            className="mb-4 px-4 py-2 bg-blue-500 text-white rounded-md"
-                          >
-                            Download as PPT
-                          </button>
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => setShowDownloadModal(true)}
+                              className="mb-4 px-4 py-2 bg-blue-500 text-white rounded-md"
+                            >
+                              Download as PPT
+                            </button>
+                            {showDownloadModal && (
+                              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+                                  <h3 className="text-xl font-bold text-blue-700 mb-4">Download Report Options</h3>
+                                  <p className="mb-4">Please select the type of report you would like to download:</p>
+
+                                  <button
+                                    onClick={() => {
+                                      setShowDownloadModal(false);
+                                      downloadPPT(false, 'limited');
+                                    }}
+                                    className="w-full mb-4 py-2 bg-blue-700 text-white rounded font-bold"
+                                  >
+                                    Charts Only
+                                  </button>
+
+                                  <div className="border-t border-gray-200 pt-4 mb-4">
+                                    <p className="font-bold mb-2">Include table data in report:</p>
+
+                                    <div className="space-y-2 mb-4">
+                                      <div className="flex items-center">
+                                        <input
+                                          type="radio"
+                                          id="limitedRows"
+                                          name="tableRows"
+                                          value="limited"
+                                          defaultChecked
+                                          className="mr-2"
+                                        />
+                                        <label htmlFor="limitedRows">First 20 rows only</label>
+                                      </div>
+
+                                      <div className="flex items-center">
+                                        <input
+                                          type="radio"
+                                          id="allRows"
+                                          name="tableRows"
+                                          value="all"
+                                          className="mr-2"
+                                        />
+                                        <label htmlFor="allRows">All table rows</label>
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      onClick={() => {
+                                        const selectedOptionElement = document.querySelector('input[name="tableRows"]:checked');
+                                        const selectedOption = selectedOptionElement ? (selectedOptionElement as HTMLInputElement).value : null;
+                                        setShowDownloadModal(false);
+                                        downloadPPT(true, selectedOption ?? 'limited');
+                                      }}
+                                      className="w-full py-2 bg-blue-700 text-white rounded font-bold"
+                                    >
+                                      Download Complete Report
+                                    </button>
+                                  </div>
+
+                                  <button
+                                    onClick={() => setShowDownloadModal(false)}
+                                    className="w-full py-2 bg-gray-200 text-gray-800 rounded border border-gray-300"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                           {/* <p className="text-center">Charts will be displayed here.</p> */}
 
                           {/* Flex container for charts */}
@@ -1893,6 +2898,7 @@ export default function Page() {
                               style={{
                                 padding: "6px 12px",
                                 // backgroundColor: "#ffc107",
+                                color: "blue", // Text/icon color for contrast
                                 border: "none",
                                 borderRadius: "4px",
                                 cursor: "pointer",
@@ -1905,6 +2911,7 @@ export default function Page() {
                               onClick={() => handleDeletes(row)}
                               style={{
                                 padding: "6px 12px",
+                                color: "red",
                                 // backgroundColor: "#dc3545",
                                 border: "none",
                                 borderRadius: "4px",
@@ -1918,6 +2925,7 @@ export default function Page() {
                               onClick={() => handleOpenUploadModal(row.id)}
                               style={{
                                 padding: "6px 12px",
+                                color: "green",
                                 // backgroundColor: "#28a745",
                                 border: "none",
                                 borderRadius: "4px",
@@ -2143,7 +3151,7 @@ export default function Page() {
                             <td>
                               <button
                                 onClick={() => handleToggleDropdown(item.id)}
-                                className="text-blue-500 bg-gray-200 p-2 rounded-lg hover:bg-gray-300"
+                                className="text-black bg-gray-200 p-2 rounded-lg hover:bg-gray-300"
                               >
                                 {isDropdownOpen ? (
                                   <MdArrowDropUp className="ml-1" size={20} />
@@ -2227,7 +3235,7 @@ export default function Page() {
                                                 }}
                                                 className="text-blue-500"
                                               >
-                                                <FiEdit className="mr-1" size={16} style={{ color: "blue" }} />
+                                                <FaPen className="mr-1" size={16} style={{ color: "blue" }} />
                                               </button>
                                             )}
                                           </td>
@@ -2334,25 +3342,51 @@ export default function Page() {
 
               <div className="mt-4 flex justify-end space-x-2">
 
-                <button onClick={handleRePrompt} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                  Reprompt {isLoading && <Spinner />}
+                <button onClick={handleRePrompt}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" disabled={isLoading}>
+                  Reprompt
                 </button>
                 {/* {isLoading && <Spinner/>} Display spinner when loading */}
-                {isLoading && <Spinner />}
+                {/* {isLoading && <Spinner />} */}
                 <button
                   onClick={handleRunPrompt}
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                   disabled={!newPromptName.trim() || isLoading}
                 >
-                  {isLoading ? "Running..." : "Run"}
+                  Run
                 </button>
                 <button
                   onClick={handleSavePrompt}
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  disabled={isLoading}
                 >
                   Save
                 </button>
+
               </div>
+
+              {/* Modal Popup - Kept outside the flex container */}
+              {showPopup && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+                  <div className="bg-white p-6 rounded-lg shadow-xl max-w-md mx-auto">
+                    <h3 className="text-xl font-semibold mb-2">Instruction</h3>
+                    <p className="mb-4">Please click "Reprompt" first and then "Run" for better insights.</p>
+                    <button
+                      onClick={closePopup}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                    >
+                      Got it
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Single loading indicator that displays when any action is in progress */}
+              {isLoading && (
+                <div className="fixed top-4 right-4">
+                  <Spinner />
+                </div>
+              )}
 
               {/* Only show the tabs if Run button is clicked */}
               {isRunClicked && runResult && (
@@ -2389,12 +3423,14 @@ export default function Page() {
                       <div className="table-tab">
                         {runResult?.table && runResult.table.columns?.length > 0 ? (
                           <div className="mt-4">
-                            <button
-                              onClick={downloadExcel}
-                              className="mb-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                            >
-                              Download as excel
-                            </button>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={downloadExcel}
+                                className="mb-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                              >
+                                Download as excel
+                              </button>
+                            </div>
                             {/* <h4 className="font-medium text-lg">Table Data:</h4> */}
                             <div className="max-h-94 overflow-y-auto border border-gray-300 rounded">
                               <table className="min-w-full table-auto">
@@ -2440,12 +3476,82 @@ export default function Page() {
 
                     {activeTab === 'charts' && runResult.charts && (
                       <div className="charts-tab">
-                        <button
-                          onClick={downloadPPT}
-                          className="mb-4 px-4 py-2 bg-blue-500 text-white rounded-md"
-                        >
-                          Download as PPT
-                        </button>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => setShowDownloadModal(true)}
+                            className="mb-4 px-4 py-2 bg-blue-500 text-white rounded-md"
+                          >
+                            Download as PPT
+                          </button>
+
+
+                          {showDownloadModal && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                              <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+                                <h3 className="text-xl font-bold text-blue-700 mb-4">Download Report Options</h3>
+                                <p className="mb-4">Please select the type of report you would like to download:</p>
+
+                                <button
+                                  onClick={() => {
+                                    setShowDownloadModal(false);
+                                    downloadPPT(false, 'limited');
+                                  }}
+                                  className="w-full mb-4 py-2 bg-blue-500 text-white rounded font-bold"
+                                >
+                                  Charts Only
+                                </button>
+
+                                <div className="border-t border-gray-200 pt-4 mb-4">
+                                  <p className="font-bold mb-2">Include table data in report:</p>
+
+                                  <div className="space-y-2 mb-4">
+                                    <div className="flex items-center">
+                                      <input
+                                        type="radio"
+                                        id="limitedRows"
+                                        name="tableRows"
+                                        value="limited"
+                                        defaultChecked
+                                        className="mr-2"
+                                      />
+                                      <label htmlFor="limitedRows">First 20 rows only</label>
+                                    </div>
+
+                                    <div className="flex items-center">
+                                      <input
+                                        type="radio"
+                                        id="allRows"
+                                        name="tableRows"
+                                        value="all"
+                                        className="mr-2"
+                                      />
+                                      <label htmlFor="allRows">All table rows</label>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    onClick={() => {
+                                      const selectedOptionElement = document.querySelector('input[name="tableRows"]:checked');
+                                      const selectedOption = selectedOptionElement ? (selectedOptionElement as HTMLInputElement).value : null;
+                                      setShowDownloadModal(false);
+                                      downloadPPT(true, selectedOption ?? 'limited');
+                                    }}
+                                    className="w-full py-2 bg-blue-700 text-white rounded font-bold"
+                                  >
+                                    Download Complete Report
+                                  </button>
+                                </div>
+
+                                <button
+                                  onClick={() => setShowDownloadModal(false)}
+                                  className="w-full py-2 bg-gray-200 text-gray-800 rounded border border-gray-300"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         {/* <p className="text-center">Charts will be displayed here.</p> */}
 
                         {/* Flex container for charts */}
@@ -2544,6 +3650,335 @@ export default function Page() {
           </div>
 
 
+        )}
+
+
+        {activeTab === "master" && (
+          <div>
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Items</h2>
+                <button
+                  className="px-3 py-1 bg-white border border-gray-300 rounded-md flex items-center shadow-sm hover:bg-gray-50"
+                  onClick={() => setNewItemMode(true)}
+                >
+                  <PlusIcon className="h-4 w-4 mr-1 bg-blue" /> New
+                </button>
+              </div>
+
+              <div className="bg-white border rounded-md shadow-sm overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {/* Sample data row - you'll replace this with actual data from your backend */}
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-900">Sample Item</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          <button onClick={() => handleEditItem(1)} className="text-blue-600 hover:text-blue-900">
+                            <FaPen className="h-5 w-5" />
+                          </button>
+                          <button onClick={() => handleDeleteItem(1)} className="text-red-600 hover:text-red-900">
+                            <FaTrash className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* New item row */}
+                    {newItemMode && (
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input type="checkbox" className="h-4 w-4 rounded border-gray-300" disabled />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="text"
+                            className="border rounded px-2 py-1 w-full"
+                            placeholder="Enter name"
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end space-x-2">
+                            <button onClick={handleAddItem} className="text-green-600 hover:text-green-900">
+                              <CheckIcon className="h-5 w-5" />
+                            </button>
+                            <button onClick={() => setNewItemMode(false)} className="text-red-600 hover:text-red-900">
+                              <FaTrash className="h-5 w-5" />
+                            </button>
+                            <button onClick={() => setIsNewItemDropdownOpen(!isNewItemDropdownOpen)} className="text-blue-600 hover:text-blue-900">
+                              {isNewItemDropdownOpen ? (
+                                <ChevronUpIcon className="h-5 w-5" /> // Arrow Up icon
+                              ) : (
+                                <ChevronDownIcon className="h-5 w-5" /> // Arrow Down icon
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Dropdown row */}
+                    {isNewItemDropdownOpen && (
+                      <>
+                        <tr className="absolute bg-white border rounded-md shadow-md p-4 w-[950px] mt-1 z-10">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Key
+                                  </th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Value
+                                  </th>
+                                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {dropdownRows.map((row, index) => (
+                                  <tr key={index}>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <input
+                                        type="text"
+                                        className="border rounded px-2 py-1 w-40"
+                                        placeholder="Enter key"
+                                        value={row.key}
+                                        onChange={(e) => handleDropdownInputChange(index, 'key', e.target.value)}
+                                      />
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <input
+                                        type="text"
+                                        className="border rounded px-2 py-1 w-40"
+                                        placeholder="Enter value"
+                                        value={row.value}
+                                        onChange={(e) => handleDropdownInputChange(index, 'value', e.target.value)}
+                                      />
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                      <div className="flex justify-end space-x-2">
+                                        <button onClick={() => handleEditDropdownItem(index)} className="text-blue-600 hover:text-blue-900">
+                                          <FaPen className="h-5 w-5" />
+                                        </button>
+                                        <button onClick={() => handleDeleteDropdownItem(index)} className="text-red-600 hover:text-red-900">
+                                          <FaTrash className="h-5 w-5" />
+                                        </button>
+                                        <button
+                                          onClick={handleAddDropdownRow}
+                                          className="text-green-600 hover:text-green-900 flex items-center"
+                                        >
+                                          <PlusIcon className="h-5 w-5 mr-1" /> Add Row
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                                {/* <tr>
+    <td  className="px-6 py-4 whitespace-nowrap">
+      <button
+        onClick={handleAddDropdownRow}
+        className="text-green-600 hover:text-green-900 flex items-center"
+      >
+        <PlusIcon className="h-5 w-5 mr-1" /> Add Row
+      </button>
+    </td>
+  </tr> */}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+
+
+        {activeTab === "timeline" && (
+          <div>
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Items</h2>
+                <button
+                  className="px-3 py-1 bg-white border border-gray-300 rounded-md flex items-center shadow-sm hover:bg-gray-50"
+                  onClick={() => setNewItemMode(true)}
+                >
+                  <PlusIcon className="h-4 w-4 mr-1" /> New
+                </button>
+              </div>
+
+              <div className="bg-white border rounded-md shadow-sm overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {/* Sample data row - you'll replace this with actual data from your backend */}
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-900">Sample Item</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          <button onClick={() => handleEditItem(1)} className="text-blue-600 hover:text-blue-900">
+                            <FaPen className="h-5 w-5" />
+                          </button>
+                          <button onClick={() => handleDeleteItem(1)} className="text-red-600 hover:text-red-900">
+                            <FaTrash className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* New item row */}
+                    {newItemMode && (
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input type="checkbox" className="h-4 w-4 rounded border-gray-300" disabled />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="text"
+                            className="border rounded px-2 py-1 w-full"
+                            placeholder="Enter name"
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end space-x-2">
+                            <button onClick={handleAddItem} className="text-green-600 hover:text-green-900">
+                              <CheckIcon className="h-5 w-5" />
+                            </button>
+                            <button onClick={() => setNewItemMode(false)} className="text-red-600 hover:text-red-900">
+                              <FaTrash className="h-5 w-5" />
+                            </button>
+                            <button onClick={() => setIsNewItemDropdownOpen(!isNewItemDropdownOpen)} className="text-blue-600 hover:text-blue-900">
+                              {isNewItemDropdownOpen ? (
+                                <ChevronUpIcon className="h-5 w-5" /> // Arrow Up icon
+                              ) : (
+                                <ChevronDownIcon className="h-5 w-5" /> // Arrow Down icon
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Dropdown row */}
+                    {isNewItemDropdownOpen && (
+                      <>
+                        <tr className="absolute bg-white border rounded-md shadow-md p-4 w-[950px] mt-1 z-10">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Key
+                                  </th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Value
+                                  </th>
+                                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {dropdownRows.map((row, index) => (
+                                  <tr key={index}>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <input
+                                        type="text"
+                                        className="border rounded px-2 py-1 w-40"
+                                        placeholder="Enter key"
+                                        value={row.key}
+                                        onChange={(e) => handleDropdownInputChange(index, 'key', e.target.value)}
+                                      />
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <input
+                                        type="text"
+                                        className="border rounded px-2 py-1 w-40"
+                                        placeholder="Enter value"
+                                        value={row.value}
+                                        onChange={(e) => handleDropdownInputChange(index, 'value', e.target.value)}
+                                      />
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                      <div className="flex justify-end space-x-2">
+                                        <button onClick={() => handleEditDropdownItem(index)} className="text-blue-600 hover:text-blue-900">
+                                          <FaPen className="h-5 w-5" />
+                                        </button>
+                                        <button onClick={() => handleDeleteDropdownItem(index)} className="text-red-600 hover:text-red-900">
+                                          <FaTrash className="h-5 w-5" />
+                                        </button>
+                                        <button
+                                          onClick={handleAddDropdownRow}
+                                          className="text-green-600 hover:text-green-900 flex items-center"
+                                        >
+                                          <PlusIcon className="h-5 w-5 mr-1" /> Add Row
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                                {/* <tr>
+    <td  className="px-6 py-4 whitespace-nowrap">
+      <button
+        onClick={handleAddDropdownRow}
+        className="text-green-600 hover:text-green-900 flex items-center"
+      >
+        <PlusIcon className="h-5 w-5 mr-1" /> Add Row
+      </button>
+    </td>
+  </tr> */}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

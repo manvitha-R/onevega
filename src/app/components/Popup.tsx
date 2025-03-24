@@ -1,19 +1,18 @@
-import React, { useState } from 'react'
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import Spinner from './Spinner';
 
 interface PopupProps {
-    mainBoardId: string;
-    boardId?: string | null;
-    boardName?: string;
-    closeModal: () => void;
-    onSubmit: (boardData: { 
-      mainBoardId: string; 
-      boardName: string; 
-    }) => Promise<void>;
-  }
+  mainBoardId: string;
+  boardId?: string | null;
+  boardName?: string;
+  closeModal: () => void;
+  onSubmit?: (boardData: { mainBoardId: string; boardName: string }) => Promise<void>;
+  refreshNavItems: () => void; // Add function to refresh navigation items
+}
 
-
-  
 interface Board {
   boardId: string;
   name: string;
@@ -29,18 +28,19 @@ interface MainBoard {
 
 type NavItems = MainBoard[];
 
-  const Popup: React.FC<PopupProps> = ({ 
-    mainBoardId, 
-    boardId = null, 
-    boardName = '', 
-    closeModal,
-  }) => {
-
-    const router = useRouter();
-  // const [newPrompt, setNewPrompt] = useState('');
+const Popup: React.FC<PopupProps> = ({ 
+  mainBoardId, 
+  boardId = null, 
+  boardName = '', 
+  closeModal,
+  onSubmit,
+  refreshNavItems
+}) => {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(boardName || '');
-  const [, setNavItems] = useState<NavItems>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSavePrompt = async () => {
     // Input validation
@@ -50,19 +50,21 @@ type NavItems = MainBoard[];
     }
   
     try {
+      setIsSubmitting(true);
       const userId = localStorage.getItem("loggedInUserId");
       if (!userId) {
         setError("User ID not found. Please log in again.");
+        toast.error("User ID not found. Please log in again.");
         return;
       }
   
       const isEditMode = !!boardId;
       const url = isEditMode
-        ? `http://143.110.180.27:8003/main-boards/boards/${boardId}?user_id=${userId}`
-        : `http://143.110.180.27:8003/main-boards/boards/?user_id=${userId}`;
+        ? `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/${boardId}?user_id=${userId}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/?user_id=${userId}`;
   
       const requestBody = {
-        main_board_id: mainBoardId,
+        main_board_id: parseInt(mainBoardId),
         name: name,
       };
   
@@ -92,131 +94,35 @@ type NavItems = MainBoard[];
   
       const data = await response.json();
       console.log(isEditMode ? "Board updated:" : "Board created:", data);
-  
-      // Update the frontend state immediately
-      setNavItems((prevItems) => {
-        if (isEditMode) {
-          // Update the existing board
-          return prevItems.map((item) =>
-            item.main_board_id === mainBoardId
-              ? {
-                  ...item,
-                  boards: {
-                    ...item.boards,
-                    [boardId]: {
-                      ...item.boards[boardId],
-                      name: name, // Update the board name
-                    },
-                  },
-                }
-              : item
-          );
-        } else {
-          // Add the new board to the state
-          const newBoard = {
-            main_board_id: mainBoardId,
-            name: name,
-            boards: {
-              [data.id]: {
-                boardId: data.id,
-                name: name,
-                is_active: true,
-              },
-            },
-          };
-          return [...prevItems, newBoard];
-        }
-      });
-  
-      // Close modal and optionally navigate
+      
+      // Immediately refresh navigation items to display the new board
+      await refreshNavItems();
+      
+      // Close the modal
       closeModal();
-      router.push("/Dashboard");
+      
+      // Show success toast
+      toast.success(isEditMode ? "Board updated successfully!" : "Board created successfully!");
+      
+      // Navigate to the container with the new board using a string URL
+      console.log("Navigating to /Container");
+      router.push(`/Container?main_board_id=${mainBoardId}&board_id=${isEditMode ? boardId : data.id}`);
+  
     } catch (error) {
       console.error("Board operation error:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred. Please try again."
-      );
-    }
-  };
-  // useEffect(() => {
-  //   if (boardName) {
-  //     setNewPrompt(boardName);
-  //   }
-  // }, [boardName]);
-
-  // const handleSavePrompt = async () => {
-  //   try {
-  //     const isEditMode = !!boardId;
-  //     const requestBody = {
-  //       main_board_id: mainBoardId,
-  //       name: newPrompt,
-  //     };
-
-  //     const url = isEditMode
-  //       ? `https://llm-backend-lcrqhjywba-uc.a.run.app/main-boards/boards/${boardId}`
-  //       : `https://llm-backend-lcrqhjywba-uc.a.run.app/main-boards/boards/`;
-
-  //     const response = await fetch(url, {
-  //       method: isEditMode ? 'PUT' : 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify(requestBody),
-  //     });
-
-  //     if (!response.ok) {
-  //       throw new Error(isEditMode ? 'Failed to update the board' : 'Failed to save the board');
-  //     }
-
-  //     const data = await response.json();
-  //     console.log(isEditMode ? 'Board updated:' : 'Board created:', data);
-  //     closeModal();
-  //     router.push('/dashboard');
-  //   } catch (error) {
-  //     console.error('Error:', error);
-  //   }
-  // };
-
-  // const handleSubmit = async () => {
-  //   try {
-  //     setError(null);
-  //     if (!name.trim()) {
-  //       setError("Board name cannot be empty");
-  //       return;
-  //     }
-
-  //     await onSubmit({ 
-  //       mainBoardId, 
-  //       boardName: name 
-  //     });
-  //     closeModal();
-  //   } catch (error) {
-  //     console.error('Submission error:', error);
-  //     setError(error instanceof Error ? error.message : 'An unexpected error occurred');
-  //   }
-  // };
-
-
-    return(
-        <div>
-           {/* <div className="popup-container">
-      <input 
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Board Name"
-        className="popup-input"
-      />
-      {error && <div className="error-message">{error}</div>}
-      <div className="popup-actions">
-        <button onClick={handleSubmit}>
-          {boardId ? 'Update' : 'Create'}
-        </button>
-        <button onClick={closeModal}>Cancel</button>
-      </div>
-    </div> */}
-  <div className="p-4">
+      const errorMessage = error instanceof Error
+        ? error.message
+        : "An unexpected error occurred. Please try again.";
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  return (
+    <div className="p-4">
+      <ToastContainer position="top-right" autoClose={3000} />
       <h4 className="text-lg font-semibold mb-4">
         {boardId ? 'Edit Board Name' : 'Create Board Name'}
       </h4>
@@ -229,34 +135,34 @@ type NavItems = MainBoard[];
         }}
         className="w-full p-2 border text-black rounded-md mb-4 min-h-[100px]"
       />
-      {error && (
-                <div className="text-red-500 mb-4">
-                    {error}
-                </div>
-            )}
+      {error && <div className="text-red-500 mb-4">{error}</div>}
       <div className="flex justify-end">
         <button
           onClick={handleSavePrompt}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          disabled={isSubmitting}
+          className={`px-4 py-2 bg-blue-600 text-white rounded-md transition-colors ${
+            isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'
+          }`}
         >
-          {boardId ? 'Update' : 'Save'}
+          {isSubmitting ? (
+            <span>Loading...</span>
+          ) : (
+            boardId ? 'Update' : 'Save'
+          )}
         </button>
-
+        {isSubmitting && <Spinner />}
         <button
-                    onClick={closeModal}
-                    className="ml-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-                >
-                    Cancel
-                </button>
+          onClick={closeModal}
+          disabled={isSubmitting}
+          className={`ml-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-md transition-colors ${
+            isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-300'
+          }`}
+        >
+          Cancel
+        </button>
       </div>
     </div>
-        </div>
-    )
-
-}
+  );
+};
 
 export default Popup;
-
-// function setNavItems(arg0: (prevItems: any) => any) {
-//   throw new Error('Function not implemented.');
-// }

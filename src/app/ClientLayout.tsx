@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Sidebar from './components/Sidebar';
+import { useEffect } from 'react';
 
 export default function ClientLayout({
   children,
@@ -10,14 +11,21 @@ export default function ClientLayout({
 }) {
   const pathname = usePathname();
   const isLoginPage = pathname === "/";
-  console.log('Current pathname:', pathname); // Add this to debug
+  const isConsultantPage = pathname === "/consultant" || pathname === "/Consultant";
+  const isCXOPage = pathname === "/cxo" || pathname === "/CXO";
+  
+  useEffect(() => {
+    console.log('Current pathname:', pathname);
+    console.log('Is consultant page:', isConsultantPage);
+    console.log('Is CXO page:', isCXOPage);
+  }, [pathname, isConsultantPage, isCXOPage]);
 
   return (
-    <div className="flex">
-      {!isLoginPage && <Sidebar clientUserId={''} />}
-      <div className={`${!isLoginPage ? 'flex-1' : 'w-full'}`}>
+    <div className="flex h-screen">
+      {!isLoginPage && !isConsultantPage && !isCXOPage && <Sidebar clientUserId={''} />}
+      <div className="w-full overflow-auto">
         {children}
       </div>
-    </div>
-  );
+    </div>
+  );
 }

@@ -177,3 +177,38 @@ button[type="submit"]:hover {
     width: 900px;
     color: #187be4; /* or any other desired width */
   }
+
+  /* Apply styles only to buttons inside the form container */
+.form-container button[type="submit"],
+.form-container button[type="button"] {
+  width: 100%;
+  padding: 10px;
+  background: #313b96;
+  border: none;
+  color: white;
+  font-size: 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.form-container button[type="submit"]:hover,
+.form-container button[type="button"]:hover {
+  background: #313b96;
+}
+/* 
+  button[type="submit"],
+button[type="button"] {
+  width: 100%;
+  padding: 10px;
+  background: #313b96;
+  border: none;
+  color: white;
+  font-size: 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button[type="submit"]:hover,
+button[type="button"]:hover { 
+  background: #313b96;
+} */
