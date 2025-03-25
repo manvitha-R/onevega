@@ -124,21 +124,21 @@ const toggleSidebar = () => {
 
 
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const userDataString = sessionStorage.getItem('currentUserData');
-      if (userDataString) {
-        try {
-          const userData = JSON.parse(userDataString);
-          setUserRole(userData.userRole);
-          setClientUserId(userData.userId);
-          console.log("User Role from sessionStorage:", userData.userRole);
-        } catch (error) {
-          console.error("Error parsing user data from sessionStorage:", error);
-        }
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    const userDataString = sessionStorage.getItem('currentUserData');
+    if (userDataString) {
+      try {
+        const userData = JSON.parse(userDataString);
+        setUserRole(userData.userRole);
+        setClientUserId(userData.userId);
+        console.log("User Role from sessionStorage:", userData.userRole);
+      } catch (error) {
+        console.error("Error parsing user data from sessionStorage:", error);
       }
     }
-  }, []);
+    }
+  }, []);
 
 
 
@@ -282,9 +282,16 @@ const toggleSidebar = () => {
   // New function to generate dynamic page
   const generateDynamicPage = async (mainBoardId: string, boardId: string, boardName: string) => {
     try {
-      const userId = localStorage.getItem("loggedInUserId"); // Get user ID from localStorage
+      // Get user data from sessionStorage with proper type checking
+      let currentUserData: { userId?: string } = {};
+      if (typeof window !== 'undefined') {
+        const storedData = sessionStorage.getItem('currentUserData');
+        currentUserData = storedData ? JSON.parse(storedData) : {};
+      }
+      
+      const userId = currentUserData.userId;
       if (!userId) {
-        throw new Error("User ID not found. Please log in again.");
+        throw new Error("User not found. Please log in again.");
       }
 
       const response = await fetch(
@@ -333,11 +340,13 @@ const toggleSidebar = () => {
     } catch (error) {
       console.error("Error creating dynamic page:", error);
       return null;
-    }
-  };
+    }
+  };
+
+  
   const handleCreateBoard = async (boardData: { mainBoardId: string; boardName: string }) => {
     try {
-      const userId = localStorage.getItem("loggedInUserId"); // Get user ID from localStorage
+      const userId = sessionStorage.getItem("loggedInUserId"); // Get user ID from localStorage
       if (!userId) {
         toast.error("User ID not found. Please log in again.");
         throw new Error("User ID not found. Please log in again.");
@@ -409,8 +418,8 @@ const toggleSidebar = () => {
       console.error("Board creation error:", error);
       toast.error(error instanceof Error ? error.message : "An unexpected error occurred");
       throw error;
-    }
-  };
+    }
+  };
 
   const handleDeleteMainBoard = async (e: React.MouseEvent, mainBoardId: string) => {
     e.stopPropagation(); // Prevent triggering the parent onClick
@@ -562,14 +571,53 @@ const toggleSidebar = () => {
 
   // Updated handleDelete function that uses the custom confirmation
   const handleDelete = async (boardId: string, mainBoardId: string) => {
-
-    const confirmDelete = window.confirm("Are you sure you want to delete this board?");
-    if (!confirmDelete) return;
-    setIsBoardLoading(true);
     try {
-      const userId = localStorage.getItem("loggedInUserId");
+      // Use toast for confirmation with custom buttons
+      const confirmDelete = await new Promise((resolve) => {
+        toast(
+          <div className="bg-white p-4 rounded-lg shadow-lg">
+            <p className="text-gray-800 mb-4">Are you sure you want to delete this board?</p>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  resolve(false);
+                  toast.dismiss();
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  resolve(true);
+                  toast.dismiss();
+                }}
+                className="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded"
+              >
+                Delete
+              </button>
+            </div>
+          </div>,
+          {
+            autoClose: false, // Don't auto-dismiss
+            closeOnClick: false,
+            draggable: false,
+          }
+        );
+      });
+
+      if (!confirmDelete) return;
+
+      // Get user data from sessionStorage
+      let currentUserData: { userId?: string } = {};
+      if (typeof window !== 'undefined') {
+        const storedData = sessionStorage.getItem('currentUserData');
+        currentUserData = storedData ? JSON.parse(storedData) : {};
+      }
+      
+      const userId = currentUserData.userId;
       if (!userId) {
-        alert("User ID not found. Please log in again.");
+        toast.error("User not found. Please log in again.");
         return;
       }
 
@@ -587,7 +635,7 @@ const toggleSidebar = () => {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Failed to delete board:', errorData);
-        alert(`Failed to delete board: ${errorData.message || "Unknown error"}`);
+        toast.error(`Failed to delete board: ${errorData.message || "Unknown error"}`);
         return;
       }
 
@@ -607,14 +655,12 @@ const toggleSidebar = () => {
         )
       );
 
-      alert("Board deleted successfully!");
+      toast.success("Board deleted successfully!");
     } catch (error) {
       console.error('Error deleting board:', error);
-      alert("An error occurred while deleting the board.");
-    } finally {
-      setIsBoardLoading(false);
-    }
-  };
+      toast.error("An error occurred while deleting the board.");
+    }
+  };
 
 
   const fetchNavItems = useCallback(async () => {

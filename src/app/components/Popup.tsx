@@ -51,10 +51,18 @@ const Popup: React.FC<PopupProps> = ({
   
     try {
       setIsSubmitting(true);
-      const userId = localStorage.getItem("loggedInUserId");
+      
+      // Get user data from sessionStorage with proper type checking
+      let currentUserData: { userId?: string } = {};
+      if (typeof window !== 'undefined') {
+        const storedData = sessionStorage.getItem('currentUserData');
+        currentUserData = storedData ? JSON.parse(storedData) : {};
+      }
+      
+      const userId = currentUserData.userId;
       if (!userId) {
-        setError("User ID not found. Please log in again.");
-        toast.error("User ID not found. Please log in again.");
+        setError("User not found. Please log in again.");
+        toast.error("User not found. Please log in again.");
         return;
       }
   
@@ -120,6 +128,7 @@ const Popup: React.FC<PopupProps> = ({
       setIsSubmitting(false);
     }
   };
+
   return (
     <div className="p-4">
       <ToastContainer position="top-right" autoClose={3000} />
