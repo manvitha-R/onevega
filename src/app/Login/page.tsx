@@ -67,14 +67,14 @@ export default function Login() {
           // Determine redirect based on user role
           const role = data.role?.toLowerCase();
           if (role === 'admin') {
-            router.push('/Dashboard');
+            router.push('/Consultant');
           } else if (role === 'user') {
-            router.push('/Dashboard');
+            router.push('/Consultant');
           } else if (role === 'consultant') {
-            router.push('/Dashboard');
+            router.push('/Consultant');
           } else {
             // Default route
-            router.push('/Dashboard');
+            router.push('/Consultant');
           }
         }, 2000);
       } else {

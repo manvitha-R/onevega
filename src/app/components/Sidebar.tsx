@@ -210,9 +210,17 @@ const toggleSidebar = () => {
         return;
       }
 
-      const clientUserId = localStorage.getItem("loggedInUserId");
+      // Get user data from sessionStorage with proper type checking
+      let currentUserData: { userId?: string } = {};
+      if (typeof window !== 'undefined') {
+        const storedData = sessionStorage.getItem('currentUserData');
+        currentUserData = storedData ? JSON.parse(storedData) : {};
+      }
+      
+      const clientUserId = currentUserData.userId;
+      
       if (!clientUserId) {
-        toast.error("User ID not found. Please log in again.");
+        toast.error("User not found. Please log in again.");
         return;
       }
 
@@ -268,9 +276,8 @@ const toggleSidebar = () => {
     } finally {
       // Hide the spinner
       setIsLoading(false);
-    }
-  };
-
+    }
+  };
 
   // New function to generate dynamic page
   const generateDynamicPage = async (mainBoardId: string, boardId: string, boardName: string) => {
