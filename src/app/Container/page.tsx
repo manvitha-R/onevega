@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, SetStateAction, useRef, ReactNode } from "react";
+import { useState, useEffect, SetStateAction, useRef, ReactNode, useCallback } from "react";
 import PptxGenJS from "pptxgenjs";
 import { useSearchParams } from "next/navigation";
 // import { MdManageSearch } from "react-icons/md";
@@ -1312,88 +1312,77 @@ export default function Page() {
 
 
   // Fetch table data for the specific board
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/get_all_tables_with_files`,
-          {
-            headers: {
-              "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp",
-            },
-          }
-        );
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch data");
+  const fetchData = useCallback(async () => {
+    if (!boardId) return;
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/get_all_tables_with_files`,
+        {
+          headers: {
+            "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp",
+          },
         }
+      );
 
-        const data = await response.json();
-
-        // Filter the fetched data based on board_id
-        const filteredData = data.filter(
-          (row: { board_id: number }) => row.board_id === parseInt(boardId!)
-        );
-        setRows(filteredData); // Set the filtered data to the rows state
-      } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("An unknown error occurred");
-        }
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error("Failed to fetch data");
       }
-    };
+      const data = await response.json();
+      setRows(data.filter((row: { board_id: number; }) => row.board_id === parseInt(boardId!)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred");
+    } finally {
+      setLoading(false);
+    }
+  }, [boardId]); // Only re-run if boardId changes
 
-    if (view === "manage-tables" && boardId) {
+  useEffect(() => {
+    if (view === "prompts" && boardId) {
       fetchData();
     }
-  }, [view, boardId]);
+  }, [view, boardId, fetchData]);
 
 
   useEffect(() => {
 
     const fetchPrompts = async () => {
       if (!boardId) return;
-
+    
       setIsLoading(true);
       setError(null);
-
+      const startTime = performance.now(); // Start timer
+    
       try {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/prompts/boards/${boardId}`,
           {
             headers: {
-              "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp", // Add API Key
+              "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp",
             },
           }
         );
-
+    
+        const endTime = performance.now(); // End timer
+        console.log(`API Response Time: ${(endTime - startTime).toFixed(2)} ms`);
+    
         if (!response.ok) {
           throw new Error("Failed to fetch prompts");
         }
-
+    
         const data: Prompt[] = await response.json();
-        console.log("Fetched prompts data:", data); // Add this logging
-
-        // Check each prompt's structure
-        data.forEach((prompt, index) => {
-          console.log(`Prompt ${index} structure:`, {
-            user_name: prompt.user_name,
-            // Log all properties to see what's available
-            ...prompt
-          });
-        });
+        console.log("Fetched prompts data:", data);
+    
         setPrompts(data);
       } catch (error) {
         setError(error instanceof Error ? error.message : "An unknown error occurred");
         console.error("Error fetching prompts:", error);
       } finally {
-        setIsLoading(false); // Set loading to false when fetching is done
+        setIsLoading(false);
       }
     };
+    
 
     fetchPrompts();
   }, [boardId]);
@@ -2420,9 +2409,9 @@ export default function Page() {
             )}
 
             {/* Show message if no prompts are found */}
-            {!isLoading && prompts.length === 0 && (
+            {/* {!isLoading && prompts.length === 0 && (
               <p className="text-center text-gray-500">No prompts found.</p>
-            )}
+            )} */}
 
           </>
         )}
@@ -3366,7 +3355,7 @@ export default function Page() {
               </div>
 
               {/* Modal Popup - Kept outside the flex container */}
-              {showPopup && (
+              {/* {showPopup && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
                   <div className="bg-white p-6 rounded-lg shadow-xl max-w-md mx-auto">
                     <h3 className="text-xl font-semibold mb-2">Instruction</h3>
@@ -3379,7 +3368,7 @@ export default function Page() {
                     </button>
                   </div>
                 </div>
-              )}
+              )} */}
 
               {/* Single loading indicator that displays when any action is in progress */}
               {isLoading && (

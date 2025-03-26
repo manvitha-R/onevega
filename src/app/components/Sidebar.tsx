@@ -71,7 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
 
 
   // const isDeleting = deletingBoards.size > 0; // Define isDeleting based on deletingBoards state
-  const [, setLoadingSubmenus] = useState<Record<string, boolean>>({});
+  // const [, setLoadingSubmenus] = useState<Record<string, boolean>>({});
   const [loadingMainBoard, setLoadingMainBoard] = useState<string | null>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -86,7 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [mainBoardName, setMainBoardName] = useState("");
   // const [loading,] = useState(false);
-  const [, setIsBoardLoading] = useState(false);
+  // const [, setIsBoardLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
@@ -113,32 +113,32 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
   console.log("User Role from localStorage:", userRole); // Debugging: Verify role value
   console.log("Sidebar Open:", isSidebarOpen); // Debugging: Verify sidebar state
 
- // Toggle function (for your existing toggle button)
-const toggleSidebar = () => {
-  const newWidth = sidebarWidth > 100 ? 64 : 250; // Toggle between collapsed and expanded
-  setSidebarWidth(newWidth);
-  setIsSidebarOpen(newWidth > 100);
-};
+  // Toggle function (for your existing toggle button)
+  const toggleSidebar = () => {
+    const newWidth = sidebarWidth > 100 ? 64 : 250; // Toggle between collapsed and expanded
+    setSidebarWidth(newWidth);
+    setIsSidebarOpen(newWidth > 100);
+  };
 
 
 
 
 
-useEffect(() => {
-  if (typeof window !== 'undefined') {
-    const userDataString = sessionStorage.getItem('currentUserData');
-    if (userDataString) {
-      try {
-        const userData = JSON.parse(userDataString);
-        setUserRole(userData.userRole);
-        setClientUserId(userData.userId);
-        console.log("User Role from sessionStorage:", userData.userRole);
-      } catch (error) {
-        console.error("Error parsing user data from sessionStorage:", error);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const userDataString = sessionStorage.getItem('currentUserData');
+      if (userDataString) {
+        try {
+          const userData = JSON.parse(userDataString);
+          setUserRole(userData.userRole);
+          setClientUserId(userData.userId);
+          console.log("User Role from sessionStorage:", userData.userRole);
+        } catch (error) {
+          console.error("Error parsing user data from sessionStorage:", error);
+        }
       }
     }
-    }
-  }, []);
+  }, []);
 
 
 
@@ -216,16 +216,16 @@ useEffect(() => {
         const storedData = sessionStorage.getItem('currentUserData');
         currentUserData = storedData ? JSON.parse(storedData) : {};
       }
-      
+
       const clientUserId = currentUserData.userId;
-      
+
       if (!clientUserId) {
         toast.error("User not found. Please log in again.");
         return;
       }
 
       // Show the spinner
-      setIsLoading(true);
+      // setIsLoading(true);
 
       const url = `${process.env.NEXT_PUBLIC_API_URL}/main-boards/?client_user_id=${clientUserId}`;
 
@@ -275,9 +275,9 @@ useEffect(() => {
       toast.error("An error occurred. Please check your connection or try again later.");
     } finally {
       // Hide the spinner
-      setIsLoading(false);
-    }
-  };
+      // setIsLoading(false);
+    }
+  };
 
   // New function to generate dynamic page
   const generateDynamicPage = async (mainBoardId: string, boardId: string, boardName: string) => {
@@ -288,7 +288,7 @@ useEffect(() => {
         const storedData = sessionStorage.getItem('currentUserData');
         currentUserData = storedData ? JSON.parse(storedData) : {};
       }
-      
+
       const userId = currentUserData.userId;
       if (!userId) {
         throw new Error("User not found. Please log in again.");
@@ -340,18 +340,18 @@ useEffect(() => {
     } catch (error) {
       console.error("Error creating dynamic page:", error);
       return null;
-    }
-  };
+    }
+  };
 
-  
+
   const handleCreateBoard = async (boardData: { mainBoardId: string; boardName: string }) => {
     try {
-      const userId = sessionStorage.getItem("loggedInUserId"); // Get user ID from localStorage
+      const userId = sessionStorage.getItem("loggedInUserId");
       if (!userId) {
         toast.error("User ID not found. Please log in again.");
         throw new Error("User ID not found. Please log in again.");
       }
-
+  
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/?user_id=${userId}`,
         {
@@ -366,60 +366,32 @@ useEffect(() => {
           }),
         }
       );
-
-      // Enhanced error handling
+  
       if (!response.ok) {
         const errorBody = await response.text();
         console.error("Server error:", errorBody);
         toast.error(`Failed to create board: ${response.status}`);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
+  
       const newBoard = await response.json();
       toast.success("Board created successfully!");
-
-      // Generate dynamic page
-      const pagePath = await generateDynamicPage(
-        boardData.mainBoardId,
-        newBoard.boardId,
-        boardData.boardName
-      );
-
-      // Update navigation items immediately
-      setNavItems((prevItems) =>
-        prevItems.map((item) =>
-          item.main_board_id === boardData.mainBoardId
-            ? {
-              ...item,
-              boards: {
-                ...item.boards,
-                [newBoard.boardId]: {
-                  boardId: newBoard.boardId,
-                  name: boardData.boardName,
-                  is_active: true,
-                  path: pagePath,
-                },
-              },
-            }
-            : item
-        )
-      );
-
-      // Also refresh the navigation items from the server to ensure consistency
-      await fetchNavItems();
-
-      closeModal();
-
-      // Navigate to the dashboard
+  
+      // Set active board and switch to "Manage Tables" tab
+      setActiveBoardId(newBoard.boardId);
+      setActiveTab("prompts");
+  
+      // Navigate to container
       router.push("/Container");
-
+  
       return newBoard;
     } catch (error) {
       console.error("Board creation error:", error);
       toast.error(error instanceof Error ? error.message : "An unexpected error occurred");
       throw error;
-    }
-  };
+    }
+  };
+  
 
   const handleDeleteMainBoard = async (e: React.MouseEvent, mainBoardId: string) => {
     e.stopPropagation(); // Prevent triggering the parent onClick
@@ -614,7 +586,7 @@ useEffect(() => {
         const storedData = sessionStorage.getItem('currentUserData');
         currentUserData = storedData ? JSON.parse(storedData) : {};
       }
-      
+
       const userId = currentUserData.userId;
       if (!userId) {
         toast.error("User not found. Please log in again.");
@@ -659,8 +631,8 @@ useEffect(() => {
     } catch (error) {
       console.error('Error deleting board:', error);
       toast.error("An error occurred while deleting the board.");
-    }
-  };
+    }
+  };
 
 
   const fetchNavItems = useCallback(async () => {
@@ -781,11 +753,11 @@ useEffect(() => {
   };
 
   const handleLogout = () => {
-    router.push('Consultant');
+    router.push('/');
   };
 
   const handleBoardClick = async (boardId: string) => {
-    setLoadingSubmenus((prev) => ({ ...prev, [boardId]: true })); // Set loading state for the submenu
+    // setLoadingSubmenus((prev) => ({ ...prev, [boardId]: true })); // Set loading state for the submenu
     setActiveBoardId(boardId);
 
     // Simulate an async operation (e.g., fetching board details)
@@ -795,7 +767,7 @@ useEffect(() => {
       console.error('Error fetching board details:', error);
       toast.error('Error loading board details');
     } finally {
-      setLoadingSubmenus((prev) => ({ ...prev, [boardId]: false })); // Reset loading state after operation
+      // setLoadingSubmenus((prev) => ({ ...prev, [boardId]: false })); // Reset loading state after operation
     }
   };
 
@@ -804,14 +776,14 @@ useEffect(() => {
 
     // If submenu is opening and collections are not yet loaded
     if (!showSubMenu && collections.length === 0) {
-      setIsLoading(true);
+      // setIsLoading(true);
 
       try {
         await fetchCollections(); // Replace with your API function
       } catch (error) {
         setError("Failed to load collections");
       } finally {
-        setIsLoading(false); // Hide loading once data is fetched
+        // setIsLoading(false); // Hide loading once data is fetched
       }
     }
   };
@@ -833,7 +805,7 @@ useEffect(() => {
   // Function to fetch collections from API
   const fetchCollections = async () => {
     try {
-      setIsLoading(true);
+      // setIsLoading(true);
       const response = await axios.get('http://143.110.180.27:8000/collections');
       console.log('Fetched collections:', response.data);
       setCollections(response.data);
@@ -841,7 +813,7 @@ useEffect(() => {
       console.error('Error fetching collections:', err);
       setError('Failed to load collections');
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
@@ -852,7 +824,7 @@ useEffect(() => {
       return;
     }
 
-    setIsLoading(true);
+    // setIsLoading(true);
     setError(null);
 
     try {
@@ -892,7 +864,7 @@ useEffect(() => {
         setError('Network error. Please try again.');
       }
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
@@ -905,14 +877,14 @@ useEffect(() => {
 
 
   return (
-    <div 
-    ref={sidebarRef}
-    className="h-screen bg-blue-900 text-white flex flex-col relative"
-    style={{ 
-      width: `${sidebarWidth}px`,
-      transition: isResizing ? 'none' : 'width 0.3s ease'
-    }}
-  >
+    <div
+      ref={sidebarRef}
+      className="h-screen bg-blue-900 text-white flex flex-col relative"
+      style={{
+        width: `${sidebarWidth}px`,
+        transition: isResizing ? 'none' : 'width 0.3s ease'
+      }}
+    >
       <ToastContainer
         position="top-center"
         autoClose={3000}
@@ -1000,14 +972,14 @@ useEffect(() => {
                 disabled={isLoading}
               >
 
-                {isLoading ? "Saving..." : "Save"}
+                {/* {isLoading ? "Saving..." : "Save"} */}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {isLoading && <Spinner />}
+      {/* {isLoading && <Spinner />} */}
       {/* Navigation Section */}
       {/* {isSidebarOpen && ( */}
       <div className="flex-1 overflow-y-auto scrollbar-hide">
@@ -1057,7 +1029,7 @@ useEffect(() => {
                   <div className="ml-6 mt-2 space-y-2">
                     {loadingMainBoard === String(item.main_board_id) ? (
                       <div className="flex justify-center">
-                        <div className="spinner"></div> {/* Show spinner while loading */}
+                        {/* <div className="spinner"></div>  */}
                       </div>
                     ) : (
                       // Render boards once loaded
@@ -1264,15 +1236,15 @@ useEffect(() => {
                 disabled={isLoading}
                 className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Creating...' : 'Create'}
+                {/* {isLoading ? 'Creating...' : 'Create'} */}
               </button>
             </div>
           </div>
         </div>
       )}
 
-       {/* Resize handle - positioned at the right edge */}
-  
+      {/* Resize handle - positioned at the right edge */}
+
     </div>
 
 
@@ -1295,6 +1267,10 @@ function setBoards(arg0: (prevBoards: any) => any) {
 }
 
 function setIsDragging(arg0: boolean) {
+  throw new Error('Function not implemented.');
+}
+
+function setActiveTab(arg0: string) {
   throw new Error('Function not implemented.');
 }
 
