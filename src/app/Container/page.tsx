@@ -1615,7 +1615,7 @@ export default function Page() {
 
 
   const handleRePrompt = async () => {
-    setHasReprompted(true);
+    // setHasReprompted(true);
     setIsLoading(true); // Start loading
     try {
       // Make the API request to get a new prompt
