@@ -1389,7 +1389,7 @@ export default function Page() {
 
   const handleRunnPrompt = async (promptText: string) => {
     setIsLoading(true);  // Start loading indicator
-    setIsRunClicked(true); // Set to true when the prompt is clicked
+    // setIsRunClicked(true); // Set to true when the prompt is clicked
 
     // Validate that promptText is not empty
     if (!promptText.trim()) {
