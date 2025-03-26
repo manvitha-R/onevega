@@ -1507,11 +1507,11 @@ export default function Page() {
   const handleRunPrompt = async () => {
 
 
-    if (!hasReprompted) {
-      // Show popup if user hasn't clicked reprompt first
-      setShowPopup(true);
-      return;
-    }
+    // if (!hasReprompted) {
+    //   // Show popup if user hasn't clicked reprompt first
+    //   setShowPopup(true);
+    //   return;
+    // }
 
     setIsLoading(true);
     setIsRunClicked(true); // Set to true when Run is clicked
@@ -1609,9 +1609,9 @@ export default function Page() {
       setIsLoading(false); // Reset loading state after API call (success or error)
     }
   };
-  const closePopup = () => {
-    setShowPopup(false);
-  };
+  // const closePopup = () => {
+  //   setShowPopup(false);
+  // };
 
 
   const handleRePrompt = async () => {
