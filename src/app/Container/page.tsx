@@ -1313,36 +1313,45 @@ export default function Page() {
 
   // Fetch table data for the specific board
 
-  const fetchData = useCallback(async () => {
-    if (!boardId) return;
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/get_all_tables_with_files`,
-        {
-          headers: {
-            "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch data");
-      }
-      const data = await response.json();
-      setRows(data.filter((row: { board_id: number; }) => row.board_id === parseInt(boardId!)));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
-    } finally {
-      setLoading(false);
-    }
-  }, [boardId]); // Only re-run if boardId changes
-
   useEffect(() => {
-    if (view === "prompts" && boardId) {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/data-management-table/get_all_tables_with_files`,
+          {
+            headers: {
+              "X-API-Key": "xxAJf365FZZidPt496lk9M2XDbvQCMKevOSuBgx2k6BAjp3ALe4vLTjXtcmgatoQtvsSLED3lx7zEgyHcohd1Wa2iJWTlukzQTuauvTbGYjSgMtFq5AUQLuAcMW44mp",
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch data");
+        }
+
+        const data = await response.json();
+
+        // Filter the fetched data based on board_id
+        const filteredData = data.filter(
+          (row: { board_id: number }) => row.board_id === parseInt(boardId!)
+        );
+        setRows(filteredData); // Set the filtered data to the rows state
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("An unknown error occurred");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (view === "manage-tables" && boardId) {
       fetchData();
     }
-  }, [view, boardId, fetchData]);
+  }, [view, boardId]);
 
 
   useEffect(() => {
@@ -1564,26 +1573,36 @@ export default function Page() {
       if (response?.data) {
         console.log("Prompt run successfully:", response.data);
         setRunResult(response.data); // Set the result to display it
-
+      
+        const hasCharts = response.data.charts?.length > 0;
+        const hasTable = response.data.table?.columns?.length > 0;
+        const hasMessage = response.data.message?.length > 0;
+      
+        // Determine the default active tab
+        if (hasCharts && hasTable) {
+          setActiveTab("charts"); // If both charts and table exist, default to charts
+        } else if (hasTable) {
+          setActiveTab("table");
+        } else if (hasCharts) {
+          setActiveTab("charts");
+        } else if (hasMessage) {
+          setActiveTab("message"); // If neither charts nor table exist, show message tab
+        }
+      
+        console.log("Active Tab:", activeTab);
+      
         // Check if the user asked for charts
         const chartKeywords = ["chart", "visualization"];
         const responseDetails = response.data.detail?.toLowerCase() || "";
-        if (response.data.message?.length > 0) {
-          setActiveTab("message"); // Set active tab to 'message' if message exists
-        } else if (response.data.table?.columns?.length > 0) {
-          setActiveTab("table"); // Set active tab to 'table' if table data exists
-        } else if (response.data.charts?.length > 0) {
-          setActiveTab("charts"); // Set active tab to 'charts' if chart data exists
-        }
         console.log("Response Details:", responseDetails); // Debugging
-
+      
         // Determine if charts are needed based on prompt or response details
         const shouldShowCharts =
           chartKeywords.some((keyword) =>
             newPromptName.toLowerCase().includes(keyword)
           ) ||
           chartKeywords.some((keyword) => responseDetails.includes(keyword));
-
+      
         console.log("Should Show Charts:", shouldShowCharts); // Debugging
         setShowCharts(shouldShowCharts); // Display the chart if applicable
       } else {
