@@ -1055,7 +1055,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
                           <div
                             key={boardId}
                             className={`flex items-center justify-between p-2 rounded cursor-pointer ${
-                              activeBoardId === boardId ? 'bg-blue-700 text-white' : 'hover:bg-blue-700'
+                              activeBoardId === boardId ? 'bg-gray-800 text-white' : 'hover:bg-gray-800'
                             }`}
                             onClick={() => handleBoardClick(boardId)}
                           >
@@ -1273,17 +1273,17 @@ export default Sidebar;
 
 
 
-function setMainBoardId(_id: string) {
-  throw new Error(`Setting main board ID to: ${_id}`);
-}
+// function setMainBoardId(_id: string) {
+//   throw new Error(`Setting main board ID to: ${_id}`);
+// }
 
-function setBoards(arg0: (prevBoards: any) => any) {
-  throw new Error('Function not implemented.');
-}
+// function setBoards(arg0: (prevBoards: any) => any) {
+//   throw new Error('Function not implemented.');
+// }
 
-function setIsDragging(arg0: boolean) {
-  throw new Error('Function not implemented.');
-}
+// function setIsDragging(arg0: boolean) {
+//   throw new Error('Function not implemented.');
+// }
 
 function setActiveTab(arg0: string) {
   throw new Error('Function not implemented.');
