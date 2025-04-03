@@ -54,7 +54,6 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
   const [sidebarWidth, setSidebarWidth] = useState(250); // Default width in pixels
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef(null);
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [showModal, setShowModal] = useState<boolean>(false);
@@ -120,7 +119,17 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
     setIsSidebarOpen(newWidth > 100);
   };
 
+  const textMeasureRef = useRef<HTMLDivElement>(null);
 
+  const updateSidebarWidth = () => {
+    if (textMeasureRef.current) {
+      const maxWidth = Math.max(
+        ...navItems.map((item) => textMeasureRef.current ? textMeasureRef.current.offsetWidth + 100 : 0) // Add padding
+      );
+
+      setSidebarWidth(Math.max(250, maxWidth)); // Ensure minimum width
+    }
+  };
 
 
 
@@ -269,7 +278,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
       await fetchNavItems();
 
       // Navigate to the dashboard
-      router.push("/Dashboard");
+      router.push("/Container");
     } catch (error) {
       console.error("Error:", error);
       toast.error("An error occurred. Please check your connection or try again later.");
@@ -277,6 +286,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
       // Hide the spinner
       // setIsLoading(false);
     }
+    updateSidebarWidth();
   };
 
   // New function to generate dynamic page
@@ -351,7 +361,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
         toast.error("User ID not found. Please log in again.");
         throw new Error("User ID not found. Please log in again.");
       }
-  
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/main-boards/boards/?user_id=${userId}`,
         {
@@ -366,32 +376,33 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
           }),
         }
       );
-  
+
       if (!response.ok) {
         const errorBody = await response.text();
         console.error("Server error:", errorBody);
         toast.error(`Failed to create board: ${response.status}`);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-  
+
       const newBoard = await response.json();
       toast.success("Board created successfully!");
-  
+
       // Set active board and switch to "Manage Tables" tab
       setActiveBoardId(newBoard.boardId);
       setActiveTab("prompts");
-  
+
       // Navigate to container
       router.push("/Container");
-  
+
       return newBoard;
     } catch (error) {
       console.error("Board creation error:", error);
       toast.error(error instanceof Error ? error.message : "An unexpected error occurred");
       throw error;
     }
+    updateSidebarWidth();
   };
-  
+
 
   const handleDeleteMainBoard = async (e: React.MouseEvent, mainBoardId: string) => {
     e.stopPropagation(); // Prevent triggering the parent onClick
@@ -429,7 +440,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
 
   // Track loading state
   const [deletingBoards, setDeletingBoards] = useState<{ [key: string]: boolean }>({});
-  const [refreshCounter, setRefreshCounter] = useState(0);
+  // const [refreshCounter, setRefreshCounter] = useState(0);
 
   // Separate function to handle the actual deletion
 
@@ -877,12 +888,12 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
 
 
   return (
+
     <div
       ref={sidebarRef}
-      className="h-screen bg-blue-900 text-white flex flex-col relative"
+      className="h-screen bg-blue-900 text-white flex flex-col relative transition-all duration-300"
       style={{
-        width: `${sidebarWidth}px`,
-        transition: isResizing ? 'none' : 'width 0.3s ease'
+        width: isSidebarOpen ? "250px" : "60px",
       }}
     >
       <ToastContainer
@@ -971,6 +982,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
                   } text-white py-2 px-4 rounded`}
                 disabled={isLoading}
               >
+                Save
 
                 {/* {isLoading ? "Saving..." : "Save"} */}
               </button>
@@ -996,31 +1008,35 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
               <div key={String(item.main_board_id)} className="mb-4">
                 {/* Main Board Header */}
                 <div
-                  className="flex items-center justify-between p-2 hover:bg-gray-800 rounded cursor-pointer"
+                  className={`flex items-center justify-between p-2 rounded cursor-pointer ${
+                    activeMainBoard === String(item.main_board_id) ? 'bg-gray-800 text-white' : 'hover:bg-gray-800'
+                  }`}
                   onClick={() => toggleMainBoard(String(item.main_board_id))}
                 >
                   <div className="flex items-center">
-                    {activeMainBoard === String(item.main_board_id) ? (
-                      <ChevronDown className="w-4 h-4 mr-2" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 mr-2" />
-                    )}
-                    {/* Show name only if sidebar is open */}
+                    {item.boards && Object.keys(item.boards).some((boardId) => item.boards[boardId].is_active) ? (
+                      activeMainBoard === String(item.main_board_id) ? (
+                        <ChevronDown className="w-4 h-4 mr-2" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 mr-2"/>
+                      )
+                    ) : null}
                     {isSidebarOpen && <span className="ml-2">{item.name}</span>}
                   </div>
-
-                  <Plus
-                    className="w-4 h-4 hover:text-blue-400"
-                    onClick={(e) => handlePlusClick(e, String(item.main_board_id))}
-                  />
-                  {deletingBoards[String(item.main_board_id)] ? (
-                    <Spinner /> // Your spinner component
-                  ) : (
-                    <Trash2
-                      className="w-4 h-4 hover:text-red-400"
-                      onClick={(e) => handleDeleteMainBoard(e, String(item.main_board_id))}
+                  <div className="flex space-x-2">
+                    <Plus
+                      className="w-4 h-4 hover:text-blue-400"
+                      onClick={(e) => handlePlusClick(e, String(item.main_board_id))}
                     />
-                  )}
+                    {deletingBoards[String(item.main_board_id)] ? (
+                      <Spinner /> // Your spinner component
+                    ) : (
+                      <Trash2
+                        className="w-4 h-4 hover:text-red-400"
+                        onClick={(e) => handleDeleteMainBoard(e, String(item.main_board_id))}
+                      />
+                    )}
+                  </div>
 
                 </div>
 
@@ -1038,8 +1054,9 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
                         .map((boardId) => (
                           <div
                             key={boardId}
-                            className={`flex items-center justify-between p-2 rounded cursor-pointer ${activeBoardId === boardId ? 'bg-gray-800 text-white' : 'hover:bg-blue-700'
-                              }`}
+                            className={`flex items-center justify-between p-2 rounded cursor-pointer ${
+                              activeBoardId === boardId ? 'bg-blue-700 text-white' : 'hover:bg-blue-700'
+                            }`}
                             onClick={() => handleBoardClick(boardId)}
                           >
                             {/* Board Link */}
@@ -1084,14 +1101,12 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
 
 
 
-            <div className="flex items-center p-2 hover:bg-gray-800 rounded cursor-pointer">
-
-              <User className="w-4 h-4 mr-2" />
-              <Link href="/UserList" passHref>
-                {isSidebarOpen && userRole?.toLowerCase() === 'admin' && <span className="ml-2">User</span>}
-              </Link>
-
-            </div>
+            {isSidebarOpen && userRole?.toLowerCase() === "admin" && (
+              <div className="flex items-center p-2 hover:bg-gray-800 rounded cursor-pointer">
+                <User className="w-4 h-4 mr-2" />
+                <Link href="/UserList" passHref className="ml-2">User</Link>
+              </div>
+            )}
           </div>
         </div>
 
