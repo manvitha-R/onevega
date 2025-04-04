@@ -51,10 +51,11 @@ interface SidebarProps {
 }
 const Sidebar: React.FC<SidebarProps> = ({ }) => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  const [sidebarWidth, setSidebarWidth] = useState(250); // Default width in pixels
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Default state for sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(isSidebarOpen ? 250 : 60); // Default width in pixels
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [showModal, setShowModal] = useState<boolean>(false);
   const [showSubMenu, setShowSubMenu] = useState(false);
@@ -119,19 +120,40 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
     setIsSidebarOpen(newWidth > 100);
   };
 
-  const textMeasureRef = useRef<HTMLDivElement>(null);
+ 
 
-  const updateSidebarWidth = () => {
-    if (textMeasureRef.current) {
-      const maxWidth = Math.max(
-        ...navItems.map((item) => textMeasureRef.current ? textMeasureRef.current.offsetWidth + 100 : 0) // Add padding
-      );
+// Add these event handlers
+const startResizing = (e: { preventDefault: () => void; }) => {
+  e.preventDefault();
+  setIsResizing(true);
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', stopResizing);
+};
 
-      setSidebarWidth(Math.max(250, maxWidth)); // Ensure minimum width
+
+const handleMouseMove = (e: { clientX: any; }) => {
+  if (isResizing) {
+    const newWidth = e.clientX;
+    // Set minimum and maximum width constraints
+    if (newWidth >= 60 && newWidth <= 400) {
+      setSidebarWidth(newWidth);
     }
+  }
+};
+
+const stopResizing = () => {
+  setIsResizing(false);
+  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('mouseup', stopResizing);
+};
+
+// Add cleanup for event listeners in useEffect
+useEffect(() => {
+  return () => {
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', stopResizing);
   };
-
-
+}, [isResizing]); // Only re-run if isResizing changes
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -286,7 +308,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
       // Hide the spinner
       // setIsLoading(false);
     }
-    updateSidebarWidth();
+    // updateSidebarWidth();
   };
 
   // New function to generate dynamic page
@@ -400,7 +422,7 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
       toast.error(error instanceof Error ? error.message : "An unexpected error occurred");
       throw error;
     }
-    updateSidebarWidth();
+    // updateSidebarWidth();
   };
 
 
@@ -889,11 +911,12 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
 
   return (
 
+
     <div
       ref={sidebarRef}
       className="h-screen bg-blue-900 text-white flex flex-col relative transition-all duration-300"
       style={{
-        width: isSidebarOpen ? "250px" : "60px",
+        width: `${sidebarWidth}px`,
       }}
     >
       <ToastContainer
@@ -1259,6 +1282,11 @@ const Sidebar: React.FC<SidebarProps> = ({ }) => {
       )}
 
       {/* Resize handle - positioned at the right edge */}
+
+      <div
+        className="absolute top-0 right-0 w-1 h-full cursor-ew-resize bg-gray-700 opacity-0 hover:opacity-100 transition-opacity"
+        onMouseDown={startResizing}
+      />
 
     </div>
 
