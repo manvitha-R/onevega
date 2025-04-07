@@ -426,13 +426,13 @@ useEffect(() => {
   };
 
 
-  const handleDeleteMainBoard = async (e: React.MouseEvent, mainBoardId: string) => {
+  const handleDeleteMainBoard = async (e: React.MouseEvent, mainBoardId: string,  mainBoardName: string) => {
     e.stopPropagation(); // Prevent triggering the parent onClick
 
     // Use toast confirm instead of window.confirm
     toast.info(
       <div>
-        <p>Are you sure you want to delete this main board? This action cannot be undone.</p>
+        <p>Are you sure you want to delete <strong>{mainBoardName}</strong>?<br /> This action cannot be undone.</p>
         <div className="toast-actions">
           <button
             onClick={() => {
@@ -455,7 +455,7 @@ useEffect(() => {
         autoClose: false,
         closeButton: true,
         closeOnClick: false,
-        draggable: false
+        draggable: false,
       }
     );
   };
@@ -575,20 +575,20 @@ useEffect(() => {
   };
 
   // Updated handleDelete function that uses the custom confirmation
-  const handleDelete = async (boardId: string, mainBoardId: string) => {
+  const handleDelete = async (boardId: string, mainBoardId: string, boardName: string ) => {
     try {
       // Use toast for confirmation with custom buttons
       const confirmDelete = await new Promise((resolve) => {
         toast(
-          <div className="bg-white p-4 rounded-lg shadow-lg">
-            <p className="text-gray-800 mb-4">Are you sure you want to delete this board?</p>
-            <div className="flex justify-end space-x-2">
+          <div>
+            <p className="text-gray-800 mb-4">Are you sure you want to delete <strong>{boardName}</strong>?</p>
+            {/* <div className="flex justify-end space-x-2"> */}
               <button
                 onClick={() => {
                   resolve(false);
                   toast.dismiss();
                 }}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                className="px-4 py-2 bg-gray-500 text-white hover:bg-gray-600 rounded"
               >
                 Cancel
               </button>
@@ -601,7 +601,7 @@ useEffect(() => {
               >
                 Delete
               </button>
-            </div>
+            {/* </div> */}
           </div>,
           {
             autoClose: false, // Don't auto-dismiss
@@ -927,7 +927,7 @@ useEffect(() => {
         closeOnClick
         rtl={false}
         pauseOnFocusLoss
-        draggable
+        draggable={false}
         pauseOnHover
       />
 
@@ -1056,7 +1056,7 @@ useEffect(() => {
                     ) : (
                       <Trash2
                         className="w-4 h-4 hover:text-red-400"
-                        onClick={(e) => handleDeleteMainBoard(e, String(item.main_board_id))}
+                        onClick={(e) => handleDeleteMainBoard(e, String(item.main_board_id), item.name)}
                       />
                     )}
                   </div>
@@ -1109,7 +1109,7 @@ useEffect(() => {
                                 className="w-4 h-4 hover:text-red-400 cursor-pointer"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDelete(boardId, item.main_board_id);
+                                  handleDelete(boardId, item.main_board_id, item.boards[boardId].name);
                                 }}
                               />
                             </div>

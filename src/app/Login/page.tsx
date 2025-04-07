@@ -8,6 +8,7 @@ import './Login.css';
 import Link from 'next/link';
 import { toast, ToastContainer } from 'react-toastify';
 import { send } from 'process';
+import Spinner from '../components/Spinner';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -18,21 +19,23 @@ export default function Login() {
   const [showVerifyOtpScreen, setShowVerifyOtpScreen] = useState(false);
   const [showPassword, setShowPassword] = useState(false); // State to toggle password visibility
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword); // Toggle password visibility
   };
 
- 
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-  
+
     if (!email || !password) {
       toast.error("Please enter both email and password.");
       return;
     }
-  
+    setLoading(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/client-users/login`, {
         method: 'POST',
@@ -43,13 +46,13 @@ export default function Login() {
         },
         body: JSON.stringify({ email, password }),
       });
-  
+
       const data = await response.json();
       console.log('API Response:', data);
-  
+
       if (response.status === 200 && data.user_id) {
         const userName = data.user_name ? data.user_name.trim() : "Unknown User";
-        
+
         // Store user data in sessionStorage
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('currentUserData', JSON.stringify({
@@ -59,9 +62,9 @@ export default function Login() {
             userName: userName
           }));
         }
-  
+
         console.log("Stored User Name:", userName);
-  
+
         toast.success('Login successful!');
         setTimeout(() => {
           // Determine redirect based on user role
@@ -84,8 +87,12 @@ export default function Login() {
     } catch (error) {
       console.error('Error during login:', error);
       toast.error('An error occurred. Please try again later.');
-    }
-  };
+    } finally {
+      setLoading(false); // Stop loading in both success/failure
+    }
+  };
+
+
   const handleSendOtp = async () => {
     if (!phoneNumber) {
       toast.error("Please enter your phone number.");
@@ -165,6 +172,11 @@ export default function Login() {
 
   return (
     <div className="login-page">
+      {loading && (
+        <div className="spinner-overlay">
+          <Spinner />
+        </div>
+      )}
       <div className="image-section">
         <div className="overlay">
           <h1>Global Business Solutions <br />with <span>AI Agent</span></h1>
@@ -215,7 +227,8 @@ export default function Login() {
                   <div className="forgot-password">
                     <Link href="/">Forgot password?</Link>
                   </div>
-                  <button type="submit">Login now</button>
+                  <button type="submit" disabled={loading}>Login now</button>
+                  {/* {loading && <Spinner />} */}
                 </form>
 
                 <div style={{ margin: '10px 0', textAlign: 'center' }}>
@@ -292,6 +305,6 @@ export default function Login() {
         </div>
       </div>
       <ToastContainer position="top-center" autoClose={3000} hideProgressBar />
- </div>
- );
+    </div>
+  );
 }
